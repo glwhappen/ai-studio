@@ -12,6 +12,7 @@ import { ReferenceImageUploader } from '@/components/ReferenceImageUploader';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -38,6 +39,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useReferenceImage, setUseReferenceImage] = useState(false);
   const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
 
   // 从 URL 参数读取提示词
@@ -72,6 +74,13 @@ export default function Home() {
     }
   };
 
+  const handleUseReferenceImageChange = (checked: boolean) => {
+    setUseReferenceImage(checked);
+    if (!checked) {
+      setReferenceImage(null);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!prompt.trim()) {
       setError('请输入提示词');
@@ -87,9 +96,10 @@ export default function Home() {
     setError(null);
 
     try {
-      await submitGeneration(prompt.trim(), referenceImage);
+      await submitGeneration(prompt.trim(), useReferenceImage ? referenceImage : null);
       setPrompt('');
       setReferenceImage(null);
+      setUseReferenceImage(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : '提交失败');
     } finally {
@@ -216,18 +226,29 @@ export default function Home() {
                     </div>
 
                     {/* 参考图片（图生图） */}
-                    <div className="space-y-2">
-                      <Label className="text-base font-serif">
-                        参考图片
-                        <span className="text-xs font-normal text-muted-foreground ml-2">
-                          （可选，用于图生图）
-                        </span>
-                      </Label>
-                      <ReferenceImageUploader
-                        value={referenceImage?.base64 || null}
-                        onChange={handleReferenceImageChange}
-                        disabled={isSubmitting}
-                      />
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="use-reference"
+                          checked={useReferenceImage}
+                          onCheckedChange={handleUseReferenceImageChange}
+                          disabled={isSubmitting}
+                        />
+                        <Label
+                          htmlFor="use-reference"
+                          className="text-sm cursor-pointer"
+                        >
+                          使用参考图片（图生图）
+                        </Label>
+                      </div>
+                      
+                      {useReferenceImage && (
+                        <ReferenceImageUploader
+                          value={referenceImage?.base64 || null}
+                          onChange={handleReferenceImageChange}
+                          disabled={isSubmitting}
+                        />
+                      )}
                     </div>
 
                     {/* 处理中提示 */}
