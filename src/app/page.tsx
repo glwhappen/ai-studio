@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Menu, Sparkles, Image as ImageIcon } from 'lucide-react';
+import type { EditImageState } from '@/types';
 
 export default function Home() {
   const {
@@ -28,11 +29,12 @@ export default function Home() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [editState, setEditState] = useState<EditImageState | null>(null);
 
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
 
-  const handleGenerate = (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string) => {
+  const handleGenerate = (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string, useCustomSize: boolean) => {
     if (currentProject) {
       addImage({
         url: imageUrl,
@@ -40,6 +42,7 @@ export default function Home() {
         model,
         aspectRatio,
         imageSize,
+        useCustomSize,
         projectId: currentProject.id,
       });
     }
@@ -51,6 +54,20 @@ export default function Home() {
 
   const handleSizeChange = (aspectRatio: string, imageSize: string, useCustomSize: boolean) => {
     updateApiConfig({ aspectRatio, imageSize, useCustomSize });
+  };
+
+  // 继续编辑：将图片作为参考图
+  const handleEditImage = (editState: EditImageState) => {
+    setEditState(editState);
+  };
+
+  // 复用设置：使用相同设置但不设置参考图
+  const handleReuseSettings = (editState: EditImageState) => {
+    setEditState(editState);
+  };
+
+  const handleClearEditState = () => {
+    setEditState(null);
   };
 
   if (!isLoaded) {
@@ -200,10 +217,12 @@ export default function Home() {
                     <ImageGenerator
                       apiConfig={state.apiConfig}
                       projectId={currentProject.id}
+                      editState={editState}
                       onGenerate={handleGenerate}
                       onOpenSettings={() => setSettingsOpen(true)}
                       onModelChange={handleModelChange}
                       onSizeChange={handleSizeChange}
+                      onClearEditState={handleClearEditState}
                     />
                   </CardContent>
                 </Card>
@@ -223,6 +242,8 @@ export default function Home() {
                     <ImageGallery
                       images={projectImages}
                       onDeleteImage={deleteImage}
+                      onEditImage={handleEditImage}
+                      onReuseSettings={handleReuseSettings}
                     />
                   </CardContent>
                 </Card>

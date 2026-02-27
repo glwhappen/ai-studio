@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -17,15 +17,17 @@ import { Sparkles, Loader2, AlertCircle, ImagePlus, X, ImageIcon } from 'lucide-
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ApiConfig } from '@/types';
+import type { ApiConfig, EditImageState } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
   projectId: string;
-  onGenerate: (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string) => void;
+  editState: EditImageState | null;
+  onGenerate: (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
   onOpenSettings: () => void;
   onModelChange: (model: string) => void;
   onSizeChange: (aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
+  onClearEditState: () => void;
 }
 
 interface GeminiResponse {
@@ -50,10 +52,12 @@ interface GeminiResponse {
 export function ImageGenerator({
   apiConfig,
   projectId,
+  editState,
   onGenerate,
   onOpenSettings,
   onModelChange,
   onSizeChange,
+  onClearEditState,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -68,6 +72,48 @@ export function ImageGenerator({
 
   const isConfigured = apiConfig.baseUrl && apiConfig.apiKey;
   const hasModel = apiConfig.selectedModel && apiConfig.selectedModel.length > 0;
+
+  // 处理编辑状态变化
+  useEffect(() => {
+    if (editState) {
+      // 填充提示词
+      setPrompt(editState.prompt);
+      
+      // 更新模型
+      if (editState.model) {
+        onModelChange(editState.model);
+      }
+      
+      // 更新尺寸设置
+      onSizeChange(editState.aspectRatio, editState.imageSize, editState.useCustomSize);
+      
+      // 如果有参考图 URL，加载它
+      if (editState.referenceImageUrl) {
+        setUseReferenceImage(true);
+        // 从 URL 加载图片并转换为 base64
+        fetch(editState.referenceImageUrl)
+          .then(response => response.blob())
+          .then(blob => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const result = event.target?.result as string;
+              const matches = result.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                setReferenceImageMime(matches[1]);
+                setReferenceImage(matches[2]);
+              }
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch(err => {
+            console.error('Failed to load reference image:', err);
+          });
+      }
+      
+      // 清除编辑状态，避免重复应用
+      onClearEditState();
+    }
+  }, [editState, onModelChange, onSizeChange, onClearEditState]);
 
   // 处理图片上传
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,7 +257,8 @@ export function ImageGenerator({
           imageUrl,
           apiConfig.selectedModel,
           apiConfig.aspectRatio,
-          apiConfig.imageSize
+          apiConfig.imageSize,
+          apiConfig.useCustomSize
         );
         setPrompt('');
         // 清除参考图片

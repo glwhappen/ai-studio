@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,15 +22,19 @@ import {
   Trash2,
   MoreVertical,
   Image as ImageIcon,
+  Edit3,
+  Copy,
 } from 'lucide-react';
-import type { GeneratedImage } from '@/types';
+import type { GeneratedImage, EditImageState } from '@/types';
 
 interface ImageGalleryProps {
   images: GeneratedImage[];
   onDeleteImage: (id: string) => void;
+  onEditImage: (editState: EditImageState) => void;
+  onReuseSettings: (editState: EditImageState) => void;
 }
 
-export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
+export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettings }: ImageGalleryProps) {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -48,6 +53,32 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
     } catch (error) {
       console.error('Download failed:', error);
     }
+  };
+
+  // 继续编辑：将图片作为参考图，填充原有提示词
+  const handleEditImage = (image: GeneratedImage) => {
+    onEditImage({
+      prompt: image.prompt,
+      model: image.model,
+      aspectRatio: image.aspectRatio,
+      imageSize: image.imageSize,
+      useCustomSize: image.useCustomSize,
+      referenceImageUrl: image.url,
+    });
+    setIsPreviewOpen(false);
+  };
+
+  // 复用设置：使用相同设置，不设置参考图
+  const handleReuseSettings = (image: GeneratedImage) => {
+    onReuseSettings({
+      prompt: image.prompt,
+      model: image.model,
+      aspectRatio: image.aspectRatio,
+      imageSize: image.imageSize,
+      useCustomSize: image.useCustomSize,
+      referenceImageUrl: '',
+    });
+    setIsPreviewOpen(false);
   };
 
   const formatDate = (dateStr: string) => {
@@ -121,6 +152,15 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleEditImage(image)}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    继续编辑
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleReuseSettings(image)}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    复用设置
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleDownload(image)}>
                     <Download className="h-4 w-4 mr-2" />
                     下载图片
@@ -175,7 +215,27 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
           </ScrollArea>
           
           {/* 底部操作栏 */}
-          <div className="p-4 pt-2 border-t flex justify-end gap-2 shrink-0">
+          <div className="p-4 pt-2 border-t flex flex-wrap justify-end gap-2 shrink-0">
+            {selectedImage && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditImage(selectedImage)}
+                >
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  继续编辑
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReuseSettings(selectedImage)}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  复用设置
+                </Button>
+              </>
+            )}
             <Button
               variant="outline"
               size="sm"

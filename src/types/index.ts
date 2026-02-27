@@ -7,7 +7,18 @@ export interface GeneratedImage {
   model: string;
   aspectRatio: string;
   imageSize: string;
+  useCustomSize: boolean;
   createdAt: string;
+}
+
+// 编辑状态（用于继续编辑图片）
+export interface EditImageState {
+  prompt: string;
+  model: string;
+  aspectRatio: string;
+  imageSize: string;
+  useCustomSize: boolean;
+  referenceImageUrl: string; // 作为参考图的图片 URL
 }
 
 // 项目
