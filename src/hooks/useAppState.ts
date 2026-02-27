@@ -16,6 +16,7 @@ export interface ImageRecord {
   provider: ApiProvider;
   status: ImageStatus;
   image_url: string | null;
+  original_url?: string; // 原始签名 URL，用于下载
   error_message: string | null;
   is_public: boolean;
   config: Record<string, unknown> | null;

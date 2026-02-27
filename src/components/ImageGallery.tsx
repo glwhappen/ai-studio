@@ -83,8 +83,11 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
   const handleDownload = async (image: ImageRecord) => {
     if (!image.image_url) return;
     
+    // 使用原始 URL 下载（代理 URL 可能有问题）
+    const downloadUrl = image.original_url || image.image_url;
+    
     try {
-      const response = await fetch(image.image_url);
+      const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');

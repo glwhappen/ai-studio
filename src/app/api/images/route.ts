@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     // 转换字段名，并处理图片 URL（自动迁移 base64 到对象存储）
     const images = await Promise.all((data || []).map(async (img) => {
       let imageUrl = img.image_url;
+      let proxyUrl: string | undefined;
       
       // 如果是 base64，上传到对象存储并更新数据库
       if (imageUrl && isBase64DataUrl(imageUrl)) {
@@ -38,7 +39,10 @@ export async function GET(request: NextRequest) {
             .update({ image_url: key })
             .eq('id', img.id);
           // 生成签名 URL
-          imageUrl = await getImageUrl(key);
+          const signedUrl = await getImageUrl(key);
+          // 创建代理 URL（解决跨域问题）
+          proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
+          imageUrl = signedUrl;
           console.log(`Migrated image ${img.id} to object storage`);
         } catch (e) {
           console.error('Failed to migrate image to storage:', img.id, e);
@@ -48,10 +52,17 @@ export async function GET(request: NextRequest) {
       // 如果是对象存储 key，生成签名 URL
       else if (imageUrl && !imageUrl.startsWith('http')) {
         try {
-          imageUrl = await getImageUrl(imageUrl);
+          const signedUrl = await getImageUrl(imageUrl);
+          // 创建代理 URL（解决跨域问题）
+          proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
+          imageUrl = signedUrl;
         } catch (e) {
           console.error('Failed to generate signed URL:', imageUrl, e);
         }
+      }
+      // 如果已经是完整的 URL（签名 URL），创建代理 URL
+      else if (imageUrl && imageUrl.startsWith('http')) {
+        proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
       }
       
       return {
@@ -61,7 +72,8 @@ export async function GET(request: NextRequest) {
         model: img.model,
         provider: img.provider,
         status: img.status,
-        image_url: imageUrl,
+        image_url: proxyUrl || imageUrl, // 优先使用代理 URL
+        original_url: imageUrl, // 保留原始 URL 供下载使用
         error_message: img.error_message,
         is_public: img.is_public,
         config: img.config,

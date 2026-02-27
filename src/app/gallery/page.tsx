@@ -19,6 +19,7 @@ interface PublicImage {
   model: string;
   provider: string;
   image_url: string;
+  original_url?: string; // 原始签名 URL，用于下载
   created_at: string;
   config: Record<string, unknown> | null;
 }
@@ -138,8 +139,11 @@ export default function GalleryPage() {
   };
 
   const handleDownload = async (image: PublicImage) => {
+    // 使用原始 URL 下载（代理 URL 可能有问题）
+    const downloadUrl = image.original_url || image.image_url;
+    
     try {
-      const response = await fetch(image.image_url);
+      const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
