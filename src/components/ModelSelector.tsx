@@ -12,6 +12,39 @@ import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, AlertCircle, Sparkles, Bot } from 'lucide-react';
 import type { ApiConfig, ModelInfo, ApiProvider, ProviderConfig } from '@/types';
 
+// 缓存 key 前缀
+const MODELS_CACHE_PREFIX = 'ai-image-models-cache-';
+
+// 生成缓存 key
+function getCacheKey(provider: ApiProvider, baseUrl: string): string {
+  const normalizedUrl = baseUrl.replace(/https?:\/\//, '').replace(/\/$/, '');
+  return `${MODELS_CACHE_PREFIX}${provider}-${normalizedUrl}`;
+}
+
+// 从缓存读取模型列表
+function getModelsFromCache(provider: ApiProvider, baseUrl: string): ModelInfo[] | null {
+  try {
+    const cacheKey = getCacheKey(provider, baseUrl);
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.error('Failed to read models from cache:', e);
+  }
+  return null;
+}
+
+// 保存模型列表到缓存
+function saveModelsToCache(provider: ApiProvider, baseUrl: string, models: ModelInfo[]): void {
+  try {
+    const cacheKey = getCacheKey(provider, baseUrl);
+    localStorage.setItem(cacheKey, JSON.stringify(models));
+  } catch (e) {
+    console.error('Failed to save models to cache:', e);
+  }
+}
+
 interface ModelSelectorProps {
   apiConfig: ApiConfig;
   selectedModel: string;
@@ -36,11 +69,27 @@ export function ModelSelector({
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoadedFromCache, setHasLoadedFromCache] = useState(false);
 
-  const fetchModels = useCallback(async () => {
+  const fetchModels = useCallback(async (forceRefresh: boolean = false) => {
     if (!currentProviderConfig.baseUrl || !currentProviderConfig.apiKey) {
       setModels([]);
       return;
+    }
+
+    // 如果不是强制刷新，先尝试从缓存读取
+    if (!forceRefresh) {
+      const cachedModels = getModelsFromCache(currentProvider, currentProviderConfig.baseUrl);
+      if (cachedModels && cachedModels.length > 0) {
+        setModels(cachedModels);
+        setHasLoadedFromCache(true);
+        
+        // 如果当前没有选择模型，自动选择第一个
+        if (!selectedModel && cachedModels.length > 0) {
+          onModelChange(cachedModels[0].name, currentProvider);
+        }
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -67,7 +116,14 @@ export function ModelSelector({
       const allModels = data.models || [];
       // 根据当前供应商过滤模型
       const filteredModels = allModels.filter(m => m.provider === currentProvider);
+      
+      // 保存到缓存
+      if (filteredModels.length > 0) {
+        saveModelsToCache(currentProvider, currentProviderConfig.baseUrl, filteredModels);
+      }
+      
       setModels(filteredModels);
+      setHasLoadedFromCache(false);
 
       // 如果当前选择的模型不在过滤列表中，清空选择
       if (selectedModel && !filteredModels.find(m => m.name === selectedModel)) {
@@ -76,6 +132,9 @@ export function ModelSelector({
         } else {
           onModelChange('', currentProvider);
         }
+      } else if (!selectedModel && filteredModels.length > 0) {
+        // 如果没有选择模型，自动选择第一个
+        onModelChange(filteredModels[0].name, currentProvider);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
@@ -85,10 +144,16 @@ export function ModelSelector({
     }
   }, [currentProviderConfig.baseUrl, currentProviderConfig.apiKey, currentProvider, selectedModel, onModelChange]);
 
-  // 当供应商配置变化时获取模型列表
+  // 当供应商配置变化时获取模型列表（从缓存或请求）
   useEffect(() => {
-    fetchModels();
+    setHasLoadedFromCache(false);
+    fetchModels(false);
   }, [currentProviderConfig.baseUrl, currentProviderConfig.apiKey, currentProvider]);
+
+  // 手动刷新
+  const handleRefresh = () => {
+    fetchModels(true);
+  };
 
   const isConfigured = currentProviderConfig.baseUrl && currentProviderConfig.apiKey;
 
@@ -167,9 +232,9 @@ export function ModelSelector({
       <Button
         variant="ghost"
         size="icon"
-        onClick={fetchModels}
+        onClick={handleRefresh}
         disabled={isLoading}
-        title="刷新模型列表"
+        title={hasLoadedFromCache ? "从缓存加载，点击刷新" : "刷新模型列表"}
       >
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
