@@ -32,14 +32,14 @@ export default function Home() {
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
 
-  const handleGenerate = (prompt: string, imageUrl: string, model: string, width: number, height: number) => {
+  const handleGenerate = (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string) => {
     if (currentProject) {
       addImage({
         url: imageUrl,
         prompt,
         model,
-        width,
-        height,
+        aspectRatio,
+        imageSize,
         projectId: currentProject.id,
       });
     }
@@ -49,8 +49,8 @@ export default function Home() {
     updateApiConfig({ selectedModel: model });
   };
 
-  const handleSizeChange = (width: number, height: number, resolution: string) => {
-    updateApiConfig({ imageWidth: width, imageHeight: height, resolution });
+  const handleSizeChange = (aspectRatio: string, imageSize: string, useCustomSize: boolean) => {
+    updateApiConfig({ aspectRatio, imageSize, useCustomSize });
   };
 
   if (!isLoaded) {

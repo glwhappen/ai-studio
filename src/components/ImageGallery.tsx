@@ -98,9 +98,9 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-white/70">{formatDate(image.createdAt)}</p>
                   <div className="flex items-center gap-1">
-                    {image.width && image.height && (
+                    {image.aspectRatio && image.imageSize && (
                       <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                        {image.width}×{image.height}
+                        {image.aspectRatio} · {image.imageSize}
                       </span>
                     )}
                   </div>
@@ -153,9 +153,9 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
                   模型: {selectedImage.model.split('/').pop()}
                 </span>
               )}
-              {selectedImage?.width && selectedImage?.height && (
+              {selectedImage?.aspectRatio && selectedImage?.imageSize && (
                 <span className="bg-muted px-2 py-0.5 rounded">
-                  尺寸: {selectedImage.width}×{selectedImage.height}
+                  尺寸: {selectedImage.aspectRatio} · {selectedImage.imageSize}
                 </span>
               )}
             </div>

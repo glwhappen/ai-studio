@@ -10,9 +10,9 @@ const defaultState: AppState = {
     baseUrl: '',
     apiKey: '',
     selectedModel: '',
-    imageWidth: 1024,
-    imageHeight: 1024,
-    resolution: '', // 空字符串表示未启用高级尺寸设置
+    aspectRatio: '1:1',
+    imageSize: '1K',
+    useCustomSize: false,
   },
   projects: [],
   images: [],

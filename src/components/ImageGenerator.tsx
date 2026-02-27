@@ -13,18 +13,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Sparkles, Loader2, AlertCircle, Settings } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
-import type { ApiConfig, RESOLUTION_TIERS } from '@/types';
+import type { ApiConfig } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
   projectId: string;
-  onGenerate: (prompt: string, imageUrl: string, model: string, width: number, height: number) => void;
+  onGenerate: (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string) => void;
   onOpenSettings: () => void;
   onModelChange: (model: string) => void;
-  onSizeChange: (width: number, height: number, resolution: string) => void;
+  onSizeChange: (aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
 }
 
 interface GeminiResponse {
@@ -86,26 +86,14 @@ export function ImageGenerator({
       const modelName = apiConfig.selectedModel.replace(/^models\//, '');
       const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
 
-      // 构建提示词 - 只有当分辨率设置开启时才添加尺寸描述
-      let finalPrompt = prompt.trim();
-      
-      if (apiConfig.resolution) {
-        const resolutionHints: Record<string, string> = {
-          '1k': 'standard resolution',
-          '2k': 'high resolution, 2K quality, detailed',
-          '4k': 'ultra high resolution, 4K quality, extremely detailed, sharp',
-        };
-        const hint = resolutionHints[apiConfig.resolution] || resolutionHints['1k'];
-        finalPrompt = `${prompt.trim()}\n\n[Image specifications: ${hint}, aspect ratio ${apiConfig.imageWidth}:${apiConfig.imageHeight}]`;
-      }
-
       // 构建请求体
       const requestBody: Record<string, unknown> = {
         contents: [
           {
+            role: 'user',
             parts: [
               {
-                text: finalPrompt,
+                text: prompt.trim(),
               },
             ],
           },
@@ -114,6 +102,16 @@ export function ImageGenerator({
           responseModalities: ['TEXT', 'IMAGE'],
         },
       };
+
+      // 如果启用了自定义尺寸，添加 imageConfig
+      if (apiConfig.useCustomSize && apiConfig.aspectRatio) {
+        (requestBody.generationConfig as Record<string, unknown>).imageConfig = {
+          aspectRatio: apiConfig.aspectRatio,
+          imageSize: apiConfig.imageSize || '1K',
+        };
+      }
+
+      console.log('Request:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(url, {
         method: 'POST',
@@ -130,6 +128,8 @@ export function ImageGenerator({
 
       const data: GeminiResponse = await response.json();
 
+      console.log('Response:', JSON.stringify(data, null, 2));
+
       if (data.error) {
         throw new Error(`API 错误: ${data.error.message}`);
       }
@@ -144,8 +144,8 @@ export function ImageGenerator({
           prompt.trim(),
           imageUrl,
           apiConfig.selectedModel,
-          apiConfig.imageWidth,
-          apiConfig.imageHeight
+          apiConfig.aspectRatio,
+          apiConfig.imageSize
         );
         setPrompt('');
       } else {
@@ -165,9 +165,6 @@ export function ImageGenerator({
         if (finishReason && finishReason !== 'STOP') {
           errorMsg += `\n结束原因: ${finishReason}`;
         }
-        
-        // 显示完整响应便于调试
-        console.log('API 响应:', JSON.stringify(data, null, 2));
         
         throw new Error(errorMsg);
       }
@@ -195,9 +192,9 @@ export function ImageGenerator({
 
         {/* 尺寸选择 */}
         <SizeSelector
-          width={apiConfig.imageWidth}
-          height={apiConfig.imageHeight}
-          resolution={apiConfig.resolution}
+          aspectRatio={apiConfig.aspectRatio}
+          imageSize={apiConfig.imageSize}
+          useCustomSize={apiConfig.useCustomSize}
           onSizeChange={onSizeChange}
         />
 
