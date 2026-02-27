@@ -15,11 +15,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Download,
   Trash2,
   MoreVertical,
-  ZoomIn,
   Image as ImageIcon,
 } from 'lucide-react';
 import type { GeneratedImage } from '@/types';
@@ -75,11 +75,12 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {/* 瀑布流图片展示 */}
+      <div className="columns-2 md:columns-3 gap-3 space-y-3">
         {images.map((image) => (
           <div
             key={image.id}
-            className="group relative aspect-square overflow-hidden rounded-xl bg-muted cursor-pointer"
+            className="group relative overflow-hidden rounded-xl bg-muted cursor-pointer break-inside-avoid"
             onClick={() => {
               setSelectedImage(image);
               setIsPreviewOpen(true);
@@ -88,28 +89,25 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
             <img
               src={image.url}
               alt={image.prompt}
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+              className="w-full h-auto transition-transform group-hover:scale-[1.02]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* 悬停信息层 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="absolute bottom-0 left-0 right-0 p-3">
-                <p className="text-xs text-white line-clamp-2">{image.prompt}</p>
-                <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
+                <div className="flex items-center justify-between">
                   <p className="text-xs text-white/70">{formatDate(image.createdAt)}</p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {image.width && image.height && (
                       <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
                         {image.width}×{image.height}
-                      </span>
-                    )}
-                    {image.model && (
-                      <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                        {image.model.split('/').pop()}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+            {/* 操作按钮 */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -141,10 +139,10 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
         ))}
       </div>
 
-      {/* 图片预览 */}
+      {/* 图片预览弹窗 */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-4xl max-h-[95vh] p-0 gap-0">
+          <DialogHeader className="p-4 pb-2 border-b shrink-0">
             <DialogTitle className="font-serif">图片预览</DialogTitle>
             <DialogDescription className="line-clamp-2">
               {selectedImage?.prompt}
@@ -162,18 +160,25 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
               )}
             </div>
           </DialogHeader>
-          {selectedImage && (
-            <div className="relative">
-              <img
-                src={selectedImage.url}
-                alt={selectedImage.prompt}
-                className="w-full rounded-lg"
-              />
-            </div>
-          )}
-          <div className="flex justify-end gap-2">
+          
+          {/* 可滚动的图片区域 */}
+          <ScrollArea className="flex-1 max-h-[60vh]">
+            {selectedImage && (
+              <div className="p-4">
+                <img
+                  src={selectedImage.url}
+                  alt={selectedImage.prompt}
+                  className="w-full h-auto rounded-lg"
+                />
+              </div>
+            )}
+          </ScrollArea>
+          
+          {/* 底部操作栏 */}
+          <div className="p-4 pt-2 border-t flex justify-end gap-2 shrink-0">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => selectedImage && handleDownload(selectedImage)}
             >
               <Download className="h-4 w-4 mr-2" />
@@ -181,6 +186,7 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
             </Button>
             <Button
               variant="destructive"
+              size="sm"
               onClick={() => {
                 if (selectedImage) {
                   onDeleteImage(selectedImage.id);
