@@ -16,6 +16,7 @@ import {
 import { Sparkles, Loader2, AlertCircle, ImagePlus, X, ImageIcon } from 'lucide-react';
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { ApiConfig } from '@/types';
 
 interface ImageGeneratorProps {
@@ -60,6 +61,7 @@ export function ImageGenerator({
   const [showConfigAlert, setShowConfigAlert] = useState(false);
   
   // 图生图相关状态
+  const [useReferenceImage, setUseReferenceImage] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceImageMime, setReferenceImageMime] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +106,7 @@ export function ImageGenerator({
   const handleRemoveImage = () => {
     setReferenceImage(null);
     setReferenceImageMime(null);
+    setUseReferenceImage(false);
   };
 
   // 触发文件选择
@@ -214,6 +217,7 @@ export function ImageGenerator({
         // 清除参考图片
         setReferenceImage(null);
         setReferenceImageMime(null);
+        setUseReferenceImage(false);
       } else {
         // 检查是否有文本返回
         const textData = data.candidates?.[0]?.content?.parts?.find(
@@ -265,48 +269,71 @@ export function ImageGenerator({
         />
 
         {/* 参考图片上传（图生图） */}
-        <div className="space-y-2">
-          <Label className="text-base font-serif">参考图片（可选）</Label>
-          <p className="text-xs text-muted-foreground">
-            上传参考图片进行图生图创作
-          </p>
-          
-          {/* 隐藏的文件输入 */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          
-          {referenceImage ? (
-            // 显示已上传的图片预览
-            <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
-              <img
-                src={`data:${referenceImageMime};base64,${referenceImage}`}
-                alt="参考图片"
-                className="w-full h-full object-contain"
-              />
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute top-2 right-2 h-7 w-7"
-                onClick={handleRemoveImage}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            // 上传按钮
-            <button
-              onClick={handleSelectImage}
-              className="w-full aspect-video rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/50 transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground"
+        <div className="space-y-3">
+          {/* 图生图开关 */}
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="use-reference-image" 
+              checked={useReferenceImage}
+              onCheckedChange={(checked) => {
+                setUseReferenceImage(checked as boolean);
+                if (!checked) {
+                  // 取消勾选时清除图片
+                  setReferenceImage(null);
+                  setReferenceImageMime(null);
+                }
+              }}
+            />
+            <label
+              htmlFor="use-reference-image"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-1.5"
             >
-              <ImagePlus className="h-8 w-8" />
-              <span className="text-sm">点击上传参考图片</span>
-              <span className="text-xs text-muted-foreground">支持 JPG、PNG、WebP，最大 10MB</span>
-            </button>
+              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              图生图（上传参考图片）
+            </label>
+          </div>
+
+          {/* 图片上传区域 */}
+          {useReferenceImage && (
+            <div className="p-3 bg-muted/30 rounded-lg border">
+              {/* 隐藏的文件输入 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              
+              {referenceImage ? (
+                // 显示已上传的图片预览
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-background">
+                  <img
+                    src={`data:${referenceImageMime};base64,${referenceImage}`}
+                    alt="参考图片"
+                    className="w-full h-full object-contain"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-7 w-7"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                // 上传按钮
+                <button
+                  onClick={handleSelectImage}
+                  className="w-full aspect-video rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-background transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground"
+                >
+                  <ImagePlus className="h-8 w-8" />
+                  <span className="text-sm">点击上传参考图片</span>
+                  <span className="text-xs">支持 JPG、PNG、WebP，最大 10MB</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
 
