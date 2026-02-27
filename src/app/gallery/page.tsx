@@ -20,6 +20,37 @@ interface PublicImage {
   provider: string;
   image_url: string;
   created_at: string;
+  config: Record<string, unknown> | null;
+}
+
+// 获取尺寸显示文本
+function getSizeText(image: PublicImage): string | null {
+  const config = image.config;
+  
+  if (image.provider === 'gemini' && config?.aspectRatio && config?.imageSize) {
+    return `${config.aspectRatio} · ${config.imageSize}`;
+  }
+  if (image.provider === 'openai' && config?.size) {
+    return config.size as string;
+  }
+  return null;
+}
+
+// 构建创作链接参数
+function buildCreateUrl(image: PublicImage): string {
+  const params = new URLSearchParams();
+  params.set('prompt', image.prompt);
+  params.set('model', image.model);
+  params.set('provider', image.provider);
+  
+  const config = image.config;
+  if (config) {
+    if (config.aspectRatio) params.set('aspectRatio', config.aspectRatio as string);
+    if (config.imageSize) params.set('imageSize', config.imageSize as string);
+    if (config.size) params.set('size', config.size as string);
+  }
+  
+  return `/?${params.toString()}`;
 }
 
 export default function GalleryPage() {
@@ -153,7 +184,14 @@ export default function GalleryPage() {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
-                          <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                            {getSizeText(image) && (
+                              <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                                {getSizeText(image)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {/* 提供商标识 */}
@@ -232,6 +270,7 @@ export default function GalleryPage() {
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span>模型: {selectedImage.model}</span>
+                    {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
                     <span>{formatDate(selectedImage.created_at)}</span>
                   </div>
                 </div>
@@ -260,7 +299,7 @@ export default function GalleryPage() {
                     </>
                   )}
                 </Button>
-                <Link href={`/?prompt=${encodeURIComponent(selectedImage.prompt)}`}>
+                <Link href={buildCreateUrl(selectedImage)}>
                   <Button size="sm">
                     <Sparkles className="h-4 w-4 mr-1.5" />
                     用此提示词创作

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     // 获取公开且已完成的图片
     const { data, error } = await client
       .from('images')
-      .select('id, prompt, model, provider, image_url, is_public, created_at')
+      .select('id, prompt, model, provider, image_url, is_public, created_at, config')
       .eq('is_public', true)
       .eq('status', 'completed')
       .not('image_url', 'is', null)

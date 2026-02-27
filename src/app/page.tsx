@@ -45,12 +45,40 @@ function HomeContent() {
   const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
   const [activeTab, setActiveTab] = useState('create');
 
-  // 从 URL 参数读取提示词
+  // 从 URL 参数读取提示词和配置
   useEffect(() => {
     const promptParam = searchParams.get('prompt');
+    const modelParam = searchParams.get('model');
+    const providerParam = searchParams.get('provider');
+    const aspectRatioParam = searchParams.get('aspectRatio');
+    const imageSizeParam = searchParams.get('imageSize');
+    const sizeParam = searchParams.get('size');
+    
     if (promptParam) {
       setPrompt(promptParam);
-      setActiveTab('create'); // 有 prompt 参数时切换到创作工作台
+      setActiveTab('create');
+    }
+    
+    // 自动选择供应商
+    if (providerParam && (providerParam === 'gemini' || providerParam === 'openai')) {
+      if (apiConfig.currentProvider !== providerParam) {
+        switchProvider(providerParam);
+      }
+    }
+    
+    // 自动选择模型
+    if (modelParam) {
+      updateApiConfig({ selectedModel: modelParam });
+    }
+    
+    // 自动选择尺寸参数
+    if (aspectRatioParam || imageSizeParam || sizeParam) {
+      updateApiConfig({
+        useCustomSize: true,
+        ...(aspectRatioParam && { aspectRatio: aspectRatioParam }),
+        ...(imageSizeParam && { imageSize: imageSizeParam }),
+        ...(sizeParam && { openaiSize: sizeParam }),
+      });
     }
   }, [searchParams]);
 
