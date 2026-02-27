@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ImageGallery } from '@/components/ImageGallery';
@@ -17,6 +18,7 @@ import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, CheckCircle
 import Link from 'next/link';
 
 export default function Home() {
+  const searchParams = useSearchParams();
   const {
     apiConfig,
     userId,
@@ -35,6 +37,14 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 从 URL 参数读取提示词
+  useEffect(() => {
+    const promptParam = searchParams.get('prompt');
+    if (promptParam) {
+      setPrompt(promptParam);
+    }
+  }, [searchParams]);
 
   const currentProvider = apiConfig.currentProvider;
   const currentProviderConfig = getCurrentProviderConfig();

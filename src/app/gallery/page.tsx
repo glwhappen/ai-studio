@@ -257,7 +257,7 @@ export default function GalleryPage() {
                     </>
                   )}
                 </Button>
-                <Link href="/">
+                <Link href={`/?prompt=${encodeURIComponent(selectedImage.prompt)}`}>
                   <Button size="sm">
                     <Sparkles className="h-4 w-4 mr-1.5" />
                     用此提示词创作
