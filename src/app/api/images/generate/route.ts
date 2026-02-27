@@ -12,13 +12,20 @@ interface GenerateRequest {
   aspectRatio?: string;
   imageSize?: string;
   size?: string;
+  // 参考图片（图生图）
+  referenceImage?: string;
+  referenceImageMime?: string;
 }
 
 // 创建图片记录并启动生成任务
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
-    const { userId, prompt, model, provider, baseUrl, apiKey, aspectRatio, imageSize, size } = body;
+    const { 
+      userId, prompt, model, provider, baseUrl, apiKey, 
+      aspectRatio, imageSize, size,
+      referenceImage, referenceImageMime
+    } = body;
     
     if (!userId || !prompt || !model || !provider || !baseUrl || !apiKey) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -39,6 +46,7 @@ export async function POST(request: NextRequest) {
           aspectRatio,
           imageSize,
           size,
+          hasReferenceImage: !!referenceImage,
         },
       })
       .select('id')
@@ -52,7 +60,8 @@ export async function POST(request: NextRequest) {
     
     // 启动后台生成任务（不等待结果）
     generateImageAsync(imageId, {
-      prompt, model, provider, baseUrl, apiKey, aspectRatio, imageSize, size
+      prompt, model, provider, baseUrl, apiKey, aspectRatio, imageSize, size,
+      referenceImage, referenceImageMime
     }).catch(error => {
       console.error('Background generation error:', error);
     });
@@ -79,6 +88,8 @@ async function generateImageAsync(
     aspectRatio?: string;
     imageSize?: string;
     size?: string;
+    referenceImage?: string;
+    referenceImageMime?: string;
   }
 ) {
   const client = getSupabaseClient();
@@ -91,14 +102,14 @@ async function generateImageAsync(
       .eq('id', imageId);
     
     // 根据提供商调用不同的生成 API
-    const { prompt, model, provider, baseUrl, apiKey, aspectRatio, imageSize, size } = params;
+    const { prompt, model, provider, baseUrl, apiKey, aspectRatio, imageSize, size, referenceImage, referenceImageMime } = params;
     
     let imageUrl: string | null = null;
     
     if (provider === 'openai') {
-      imageUrl = await callOpenAI({ prompt, model, baseUrl, apiKey, size });
+      imageUrl = await callOpenAI({ prompt, model, baseUrl, apiKey, size, referenceImage, referenceImageMime });
     } else {
-      imageUrl = await callGemini({ prompt, model, baseUrl, apiKey, aspectRatio, imageSize });
+      imageUrl = await callGemini({ prompt, model, baseUrl, apiKey, aspectRatio, imageSize, referenceImage, referenceImageMime });
     }
     
     if (imageUrl) {
@@ -136,30 +147,64 @@ async function callOpenAI(params: {
   baseUrl: string;
   apiKey: string;
   size?: string;
+  referenceImage?: string;
+  referenceImageMime?: string;
 }): Promise<string | null> {
-  const { prompt, model, baseUrl, apiKey, size } = params;
+  const { prompt, model, baseUrl, apiKey, size, referenceImage, referenceImageMime } = params;
   
   const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-  const apiUrl = `${cleanBaseUrl}/v1/images/generations`;
   
-  const requestBody: Record<string, unknown> = {
-    model,
-    prompt,
-    n: 1,
-  };
-  
-  if (size && size !== 'auto') {
-    requestBody.size = size;
+  // 如果有参考图片，使用编辑接口（图生图）
+  const isEdit = referenceImage && referenceImageMime;
+  const apiUrl = isEdit 
+    ? `${cleanBaseUrl}/v1/images/edits`
+    : `${cleanBaseUrl}/v1/images/generations`;
+
+  let response: Response;
+
+  if (isEdit) {
+    // 使用 multipart/form-data 格式
+    const formData = new FormData();
+    
+    // 将 base64 转换为 Blob
+    const imageBuffer = Buffer.from(referenceImage!, 'base64');
+    const imageBlob = new Blob([imageBuffer], { type: referenceImageMime! });
+    formData.append('image', imageBlob, 'image.png');
+    formData.append('prompt', prompt);
+    formData.append('model', model);
+    formData.append('n', '1');
+    if (size && size !== 'auto') {
+      formData.append('size', size);
+    }
+
+    response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+  } else {
+    // 使用 JSON 格式
+    const requestBody: Record<string, unknown> = {
+      model,
+      prompt,
+      n: 1,
+    };
+    
+    if (size && size !== 'auto') {
+      requestBody.size = size;
+    }
+
+    response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
   }
-  
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
   
   if (!response.ok) {
     const errorText = await response.text();
@@ -202,10 +247,26 @@ async function callGemini(params: {
   apiKey: string;
   aspectRatio?: string;
   imageSize?: string;
+  referenceImage?: string;
+  referenceImageMime?: string;
 }): Promise<string | null> {
-  const { prompt, model, baseUrl, apiKey, aspectRatio, imageSize } = params;
+  const { prompt, model, baseUrl, apiKey, aspectRatio, imageSize, referenceImage, referenceImageMime } = params;
   
-  const parts: Array<{ text?: string }> = [{ text: prompt }];
+  // Gemini 支持在 parts 中添加图片
+  const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+  
+  // 如果有参考图片，先添加图片
+  if (referenceImage && referenceImageMime) {
+    parts.push({
+      inlineData: {
+        mimeType: referenceImageMime,
+        data: referenceImage,
+      },
+    });
+  }
+  
+  // 添加文本提示词
+  parts.push({ text: prompt });
   
   const requestBody: Record<string, unknown> = {
     contents: [{ role: 'user', parts }],

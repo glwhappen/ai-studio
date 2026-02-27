@@ -8,13 +8,14 @@ import { ImageGallery } from '@/components/ImageGallery';
 import { ProviderSelector } from '@/components/ProviderSelector';
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
+import { ReferenceImageUploader } from '@/components/ReferenceImageUploader';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -37,6 +38,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
 
   // 从 URL 参数读取提示词
   useEffect(() => {
@@ -62,6 +64,14 @@ export default function Home() {
     updateApiConfig(params);
   };
 
+  const handleReferenceImageChange = (base64: string | null, mimeType: string | null) => {
+    if (base64 && mimeType) {
+      setReferenceImage({ base64, mimeType });
+    } else {
+      setReferenceImage(null);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!prompt.trim()) {
       setError('请输入提示词');
@@ -77,8 +87,9 @@ export default function Home() {
     setError(null);
 
     try {
-      await submitGeneration(prompt.trim());
+      await submitGeneration(prompt.trim(), referenceImage);
       setPrompt('');
+      setReferenceImage(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '提交失败');
     } finally {
@@ -200,6 +211,21 @@ export default function Home() {
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         className="min-h-[120px] resize-none"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    {/* 参考图片（图生图） */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-serif">
+                        参考图片
+                        <span className="text-xs font-normal text-muted-foreground ml-2">
+                          （可选，用于图生图）
+                        </span>
+                      </Label>
+                      <ReferenceImageUploader
+                        value={referenceImage?.base64 || null}
+                        onChange={handleReferenceImageChange}
                         disabled={isSubmitting}
                       />
                     </div>

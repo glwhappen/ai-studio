@@ -211,7 +211,10 @@ export function useAppState() {
   }, []);
 
   // 提交图片生成任务
-  const submitGeneration = useCallback(async (prompt: string): Promise<string | null> => {
+  const submitGeneration = useCallback(async (
+    prompt: string,
+    referenceImage?: { base64: string; mimeType: string } | null
+  ): Promise<string | null> => {
     if (!userId) return null;
     
     const currentConfig = getCurrentProviderConfig();
@@ -230,6 +233,8 @@ export function useAppState() {
           aspectRatio: apiConfig.useCustomSize ? apiConfig.aspectRatio : undefined,
           imageSize: apiConfig.useCustomSize ? apiConfig.imageSize : undefined,
           size: apiConfig.useCustomSize && apiConfig.openaiSize !== 'auto' ? apiConfig.openaiSize : undefined,
+          referenceImage: referenceImage?.base64,
+          referenceImageMime: referenceImage?.mimeType,
         }),
       });
       
