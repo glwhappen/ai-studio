@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IMAGE_SIZES, ASPECT_RATIOS } from '@/types';
-import { Settings2, Square, Monitor, Sparkles } from 'lucide-react';
+import { Settings2, Square, Monitor } from 'lucide-react';
 
 interface SizeSelectorProps {
   aspectRatio: string;
@@ -34,7 +34,6 @@ export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChan
   };
 
   const currentAspect = ASPECT_RATIOS.find(a => a.value === aspectRatio);
-  const currentSize = IMAGE_SIZES.find(s => s.value === imageSize);
 
   return (
     <div className="space-y-3">
@@ -91,7 +90,7 @@ export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChan
               <Monitor className="h-3 w-3" />
               分辨率
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-2">
               {IMAGE_SIZES.map((size) => (
                 <Button
                   key={size.id}
@@ -99,22 +98,12 @@ export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChan
                   variant={imageSize === size.value ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handleImageSizeChange(size.value)}
-                  className="h-8"
+                  className="flex-1 h-8"
                 >
-                  <div className="flex items-center gap-1.5 text-sm">
-                    {size.id === '1k' ? (
-                      <Monitor className="h-3.5 w-3.5" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5" />
-                    )}
-                    <span className="font-medium">{size.label}</span>
-                  </div>
+                  <span className="font-medium text-sm">{size.label}</span>
                 </Button>
               ))}
             </div>
-            {currentSize && (
-              <p className="text-xs text-muted-foreground">{currentSize.description}</p>
-            )}
           </div>
 
           {/* 当前设置显示 */}
