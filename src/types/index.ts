@@ -64,6 +64,7 @@ export interface AppState {
 export const IMAGE_SIZES: ImageSizeOption[] = [
   { id: '1k', label: '1K', value: '1K', description: '标准清晰度' },
   { id: '2k', label: '2K', value: '2K', description: '高清' },
+  { id: '4k', label: '4K', value: '4K', description: '超高清' },
 ];
 
 // 宽高比选项

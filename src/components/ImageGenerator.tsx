@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, ImagePlus, X, ImageIcon } from 'lucide-react';
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
 import type { ApiConfig } from '@/types';
@@ -58,9 +58,58 @@ export function ImageGenerator({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfigAlert, setShowConfigAlert] = useState(false);
+  
+  // 图生图相关状态
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImageMime, setReferenceImageMime] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isConfigured = apiConfig.baseUrl && apiConfig.apiKey;
   const hasModel = apiConfig.selectedModel && apiConfig.selectedModel.length > 0;
+
+  // 处理图片上传
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 检查文件类型
+    if (!file.type.startsWith('image/')) {
+      setError('请上传图片文件');
+      return;
+    }
+
+    // 检查文件大小 (最大 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('图片大小不能超过 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      // 提取 base64 数据和 MIME 类型
+      const matches = result.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        setReferenceImageMime(matches[1]);
+        setReferenceImage(matches[2]);
+      }
+    };
+    reader.readAsDataURL(file);
+    
+    // 清空 input 以便重复选择同一文件
+    e.target.value = '';
+  };
+
+  // 移除参考图片
+  const handleRemoveImage = () => {
+    setReferenceImage(null);
+    setReferenceImageMime(null);
+  };
+
+  // 触发文件选择
+  const handleSelectImage = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleGenerate = async () => {
     if (!isConfigured) {
@@ -86,16 +135,30 @@ export function ImageGenerator({
       const modelName = apiConfig.selectedModel.replace(/^models\//, '');
       const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
 
+      // 构建 parts 数组
+      const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+      
+      // 如果有参考图片，先添加图片
+      if (referenceImage && referenceImageMime) {
+        parts.push({
+          inlineData: {
+            mimeType: referenceImageMime,
+            data: referenceImage,
+          },
+        });
+      }
+      
+      // 添加文本提示词
+      parts.push({
+        text: prompt.trim(),
+      });
+
       // 构建请求体
       const requestBody: Record<string, unknown> = {
         contents: [
           {
             role: 'user',
-            parts: [
-              {
-                text: prompt.trim(),
-              },
-            ],
+            parts,
           },
         ],
         generationConfig: {
@@ -148,6 +211,9 @@ export function ImageGenerator({
           apiConfig.imageSize
         );
         setPrompt('');
+        // 清除参考图片
+        setReferenceImage(null);
+        setReferenceImageMime(null);
       } else {
         // 检查是否有文本返回
         const textData = data.candidates?.[0]?.content?.parts?.find(
@@ -198,6 +264,52 @@ export function ImageGenerator({
           onSizeChange={onSizeChange}
         />
 
+        {/* 参考图片上传（图生图） */}
+        <div className="space-y-2">
+          <Label className="text-base font-serif">参考图片（可选）</Label>
+          <p className="text-xs text-muted-foreground">
+            上传参考图片进行图生图创作
+          </p>
+          
+          {/* 隐藏的文件输入 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          
+          {referenceImage ? (
+            // 显示已上传的图片预览
+            <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+              <img
+                src={`data:${referenceImageMime};base64,${referenceImage}`}
+                alt="参考图片"
+                className="w-full h-full object-contain"
+              />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-7 w-7"
+                onClick={handleRemoveImage}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            // 上传按钮
+            <button
+              onClick={handleSelectImage}
+              className="w-full aspect-video rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/50 transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ImagePlus className="h-8 w-8" />
+              <span className="text-sm">点击上传参考图片</span>
+              <span className="text-xs text-muted-foreground">支持 JPG、PNG、WebP，最大 10MB</span>
+            </button>
+          )}
+        </div>
+
         {/* 提示词输入 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -218,7 +330,7 @@ export function ImageGenerator({
           </div>
           <Textarea
             id="prompt"
-            placeholder="描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"
+            placeholder={referenceImage ? "描述你想如何变换这张图片，例如：将其转换为水彩画风格" : "描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             className="min-h-[120px] resize-none"
@@ -249,13 +361,15 @@ export function ImageGenerator({
           ) : (
             <>
               <Sparkles className="h-4 w-4" />
-              生成图片
+              {referenceImage ? '图生图' : '生成图片'}
             </>
           )}
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
-          提示：详细的描述能获得更好的效果
+          {referenceImage 
+            ? '提示：描述清楚你想要的变化效果，如风格转换、内容修改等'
+            : '提示：详细的描述能获得更好的效果'}
         </p>
       </div>
 

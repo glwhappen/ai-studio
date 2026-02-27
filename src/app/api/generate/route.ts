@@ -7,12 +7,23 @@ interface GenerateRequest {
   imageSize: string;
   baseUrl: string;
   apiKey: string;
+  referenceImage?: string; // base64 编码的参考图片
+  referenceImageMime?: string; // 图片 MIME 类型
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
-    const { prompt, model, aspectRatio, imageSize, baseUrl, apiKey } = body;
+    const { 
+      prompt, 
+      model, 
+      aspectRatio, 
+      imageSize, 
+      baseUrl, 
+      apiKey,
+      referenceImage,
+      referenceImageMime,
+    } = body;
 
     if (!baseUrl || !apiKey) {
       return NextResponse.json(
@@ -28,15 +39,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 构建请求体，根据用户提供的 API 文档
+    // 构建 parts 数组
+    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+    
+    // 如果有参考图片，先添加图片
+    if (referenceImage && referenceImageMime) {
+      parts.push({
+        inlineData: {
+          mimeType: referenceImageMime,
+          data: referenceImage,
+        },
+      });
+    }
+    
+    // 添加文本提示词
+    parts.push({
+      text: prompt,
+    });
+
+    // 构建请求体
     const requestBody: Record<string, unknown> = {
       contents: [
         {
-          parts: [
-            {
-              text: prompt,
-            },
-          ],
+          role: 'user',
+          parts,
         },
       ],
       generationConfig: {
@@ -45,10 +71,8 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // 添加 imageConfig 参数（根据用户文档）
+    // 添加 imageConfig 参数
     const generationConfig = requestBody.generationConfig as Record<string, unknown>;
-    
-    // 如果启用了自定义尺寸，则添加 imageConfig
     generationConfig.imageConfig = {
       aspectRatio: aspectRatio || '1:1',
       imageSize: imageSize || '1K',
@@ -98,11 +122,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parts = candidates[0]?.content?.parts || [];
+    const parts_response = candidates[0]?.content?.parts || [];
     let imageData = null;
     let textResponse = '';
 
-    for (const part of parts) {
+    for (const part of parts_response) {
       if (part.inlineData) {
         imageData = part.inlineData;
       } else if (part.text) {
