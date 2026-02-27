@@ -1,24 +1,27 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ProjectList } from '@/components/ProjectList';
 import { ImageGenerator } from '@/components/ImageGenerator';
 import { ImageGallery } from '@/components/ImageGallery';
+import { ProviderSelector } from '@/components/ProviderSelector';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Menu, Sparkles, Image as ImageIcon } from 'lucide-react';
 import type { EditImageState, ApiProvider } from '@/types';
-import { getProviderFromModel } from '@/types';
 
 export default function Home() {
   const {
     state,
     isLoaded,
     updateApiConfig,
+    updateProviderConfig,
+    switchProvider,
+    getCurrentProviderConfig,
     createProject,
     deleteProject,
     selectProject,
@@ -34,11 +37,8 @@ export default function Home() {
 
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
-
-  // 根据当前模型确定提供商
-  const currentProvider = useMemo<ApiProvider>(() => {
-    return getProviderFromModel(state.apiConfig.selectedModel);
-  }, [state.apiConfig.selectedModel]);
+  const currentProvider = state.apiConfig.currentProvider;
+  const currentProviderConfig = getCurrentProviderConfig();
 
   const handleGenerate = (params: {
     prompt: string;
@@ -78,19 +78,36 @@ export default function Home() {
     updateApiConfig(params);
   };
 
+  const handleProviderChange = (provider: ApiProvider) => {
+    switchProvider(provider);
+  };
+
   // 继续编辑：将图片作为参考图
   const handleEditImage = (editState: EditImageState) => {
+    // 切换到对应的供应商
+    if (editState.provider !== currentProvider) {
+      switchProvider(editState.provider);
+    }
     setEditState(editState);
   };
 
   // 复用设置：使用相同设置但不设置参考图
   const handleReuseSettings = (editState: EditImageState) => {
+    // 切换到对应的供应商
+    if (editState.provider !== currentProvider) {
+      switchProvider(editState.provider);
+    }
     setEditState(editState);
   };
 
   const handleClearEditState = () => {
     setEditState(null);
   };
+
+  // 检查是否有任何供应商已配置
+  const hasAnyConfigured = Object.values(state.apiConfig.providers).some(
+    p => p.enabled && p.baseUrl && p.apiKey
+  );
 
   if (!isLoaded) {
     return (
@@ -113,7 +130,7 @@ export default function Home() {
           </h1>
           <SettingsPanel
             apiConfig={state.apiConfig}
-            onUpdateConfig={updateApiConfig}
+            onUpdateProviderConfig={updateProviderConfig}
           />
         </div>
         <div className="flex-1 overflow-hidden">
@@ -124,7 +141,7 @@ export default function Home() {
             onDeleteProject={deleteProject}
             onSelectProject={selectProject}
             onOpenSettings={() => setSettingsOpen(true)}
-            isApiConfigured={!!state.apiConfig.baseUrl && !!state.apiConfig.apiKey}
+            isApiConfigured={hasAnyConfigured}
           />
         </div>
       </aside>
@@ -144,7 +161,7 @@ export default function Home() {
                 <h1 className="font-serif text-lg font-bold">AI 创作室</h1>
                 <SettingsPanel
                   apiConfig={state.apiConfig}
-                  onUpdateConfig={updateApiConfig}
+                  onUpdateProviderConfig={updateProviderConfig}
                 />
               </div>
               <div className="flex-1 overflow-hidden">
@@ -161,7 +178,7 @@ export default function Home() {
                     setMobileNavOpen(false);
                     setSettingsOpen(true);
                   }}
-                  isApiConfigured={!!state.apiConfig.baseUrl && !!state.apiConfig.apiKey}
+                  isApiConfigured={hasAnyConfigured}
                 />
               </div>
             </SheetContent>
@@ -169,7 +186,7 @@ export default function Home() {
           <h1 className="font-serif text-lg font-bold">AI 创作室</h1>
           <SettingsPanel
             apiConfig={state.apiConfig}
-            onUpdateConfig={updateApiConfig}
+            onUpdateProviderConfig={updateProviderConfig}
           />
         </header>
 
@@ -235,17 +252,29 @@ export default function Home() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ImageGenerator
-                      apiConfig={state.apiConfig}
-                      projectId={currentProject.id}
-                      provider={currentProvider}
-                      editState={editState}
-                      onGenerate={handleGenerate}
-                      onOpenSettings={() => setSettingsOpen(true)}
-                      onModelChange={handleModelChange}
-                      onSizeChange={handleSizeChange}
-                      onClearEditState={handleClearEditState}
-                    />
+                    <div className="space-y-5">
+                      {/* 供应商选择器 - 放在最前面 */}
+                      <ProviderSelector
+                        currentProvider={currentProvider}
+                        onProviderChange={handleProviderChange}
+                      />
+                      
+                      <Separator />
+
+                      {/* 图片生成器 */}
+                      <ImageGenerator
+                        apiConfig={state.apiConfig}
+                        currentProvider={currentProvider}
+                        currentProviderConfig={currentProviderConfig}
+                        projectId={currentProject.id}
+                        editState={editState}
+                        onGenerate={handleGenerate}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                        onModelChange={handleModelChange}
+                        onSizeChange={handleSizeChange}
+                        onClearEditState={handleClearEditState}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
 

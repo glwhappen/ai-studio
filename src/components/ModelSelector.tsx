@@ -10,11 +10,13 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, AlertCircle, Sparkles, Bot } from 'lucide-react';
-import type { ApiConfig, ModelInfo, ApiProvider } from '@/types';
+import type { ApiConfig, ModelInfo, ApiProvider, ProviderConfig } from '@/types';
 
 interface ModelSelectorProps {
   apiConfig: ApiConfig;
   selectedModel: string;
+  currentProvider: ApiProvider;
+  currentProviderConfig: ProviderConfig;
   onModelChange: (model: string, provider: ApiProvider) => void;
 }
 
@@ -27,6 +29,8 @@ interface ModelsResponse {
 export function ModelSelector({
   apiConfig,
   selectedModel,
+  currentProvider,
+  currentProviderConfig,
   onModelChange,
 }: ModelSelectorProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -34,7 +38,7 @@ export function ModelSelector({
   const [error, setError] = useState<string | null>(null);
 
   const fetchModels = useCallback(async () => {
-    if (!apiConfig.baseUrl || !apiConfig.apiKey) {
+    if (!currentProviderConfig.baseUrl || !currentProviderConfig.apiKey) {
       setModels([]);
       return;
     }
@@ -49,8 +53,8 @@ export function ModelSelector({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          baseUrl: apiConfig.baseUrl,
-          apiKey: apiConfig.apiKey,
+          baseUrl: currentProviderConfig.baseUrl,
+          apiKey: currentProviderConfig.apiKey,
         }),
       });
 
@@ -60,12 +64,18 @@ export function ModelSelector({
         throw new Error(data.error || `获取模型列表失败: ${response.status}`);
       }
 
-      const fetchedModels = data.models || [];
-      setModels(fetchedModels);
+      const allModels = data.models || [];
+      // 根据当前供应商过滤模型
+      const filteredModels = allModels.filter(m => m.provider === currentProvider);
+      setModels(filteredModels);
 
-      // 如果当前没有选择模型且有可用模型，自动选择第一个
-      if (!selectedModel && fetchedModels.length > 0) {
-        onModelChange(fetchedModels[0].name, fetchedModels[0].provider);
+      // 如果当前选择的模型不在过滤列表中，清空选择
+      if (selectedModel && !filteredModels.find(m => m.name === selectedModel)) {
+        if (filteredModels.length > 0) {
+          onModelChange(filteredModels[0].name, currentProvider);
+        } else {
+          onModelChange('', currentProvider);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
@@ -73,14 +83,14 @@ export function ModelSelector({
     } finally {
       setIsLoading(false);
     }
-  }, [apiConfig.baseUrl, apiConfig.apiKey, selectedModel, onModelChange]);
+  }, [currentProviderConfig.baseUrl, currentProviderConfig.apiKey, currentProvider, selectedModel, onModelChange]);
 
-  // 当 API 配置变化时获取模型列表
+  // 当供应商配置变化时获取模型列表
   useEffect(() => {
     fetchModels();
-  }, [apiConfig.baseUrl, apiConfig.apiKey]);
+  }, [currentProviderConfig.baseUrl, currentProviderConfig.apiKey, currentProvider]);
 
-  const isConfigured = apiConfig.baseUrl && apiConfig.apiKey;
+  const isConfigured = currentProviderConfig.baseUrl && currentProviderConfig.apiKey;
 
   // 获取当前选中模型的信息
   const selectedModelInfo = models.find((m) => m.name === selectedModel || m.name === `models/${selectedModel}`);
@@ -89,14 +99,19 @@ export function ModelSelector({
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <AlertCircle className="h-4 w-4" />
-        请先配置 API
+        请先在设置中配置 {currentProvider === 'gemini' ? 'Gemini' : 'GPT Image'} API
       </div>
     );
   }
 
-  // 按提供商分组
-  const geminiModels = models.filter(m => m.provider === 'gemini');
-  const openaiModels = models.filter(m => m.provider === 'openai');
+  if (!currentProviderConfig.enabled) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <AlertCircle className="h-4 w-4" />
+        当前供应商已禁用，请在设置中启用
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -114,7 +129,7 @@ export function ModelSelector({
           <SelectValue placeholder="选择模型...">
             {selectedModel ? (
               <div className="flex items-center gap-2 truncate">
-                {selectedModelInfo?.provider === 'gemini' ? (
+                {currentProvider === 'gemini' ? (
                   <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
                 ) : (
                   <Bot className="h-3.5 w-3.5 text-blue-500 shrink-0" />
@@ -131,39 +146,22 @@ export function ModelSelector({
         <SelectContent className="max-h-[300px]">
           {models.length === 0 && !isLoading && (
             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-              未找到支持图片生成的模型
+              未找到该供应商的图片生成模型
             </div>
           )}
           
-          {/* Gemini 模型组 */}
-          {geminiModels.length > 0 && (
-            <>
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                <Sparkles className="h-3 w-3" />
-                Gemini 系列
+          {models.map((model) => (
+            <SelectItem key={model.name} value={model.name}>
+              <div className="flex items-center gap-2">
+                {model.provider === 'gemini' ? (
+                  <Sparkles className="h-3 w-3 text-primary" />
+                ) : (
+                  <Bot className="h-3 w-3 text-blue-500" />
+                )}
+                <span>{model.displayName || model.name.split('/').pop()}</span>
               </div>
-              {geminiModels.map((model) => (
-                <SelectItem key={model.name} value={model.name}>
-                  <span>{model.displayName || model.name.split('/').pop()}</span>
-                </SelectItem>
-              ))}
-            </>
-          )}
-
-          {/* OpenAI 模型组 */}
-          {openaiModels.length > 0 && (
-            <>
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1 border-t mt-1 pt-1">
-                <Bot className="h-3 w-3" />
-                GPT Image 系列
-              </div>
-              {openaiModels.map((model) => (
-                <SelectItem key={model.name} value={model.name}>
-                  <span>{model.displayName || model.name.split('/').pop()}</span>
-                </SelectItem>
-              ))}
-            </>
-          )}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <Button

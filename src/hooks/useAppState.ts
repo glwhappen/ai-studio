@@ -1,18 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AppState, Project, GeneratedImage, ApiConfig } from '@/types';
+import type { AppState, Project, GeneratedImage, ApiConfig, ProviderConfig, ApiProvider } from '@/types';
 
-const STORAGE_KEY = 'gemini-image-generator-state';
+const STORAGE_KEY = 'ai-image-generator-state';
 
-// 默认 API 配置
-export const DEFAULT_BASE_URL = 'https://ai.nflow.red';
-export const DEFAULT_API_KEY = 'sk-OQElE8IYLAryIy92mdyfnzvjCcgtRrMJk5hIGLgH0QbkEfYC';
+// 默认供应商配置
+const DEFAULT_GEMINI_CONFIG: ProviderConfig = {
+  baseUrl: 'https://ai.nflow.red',
+  apiKey: 'sk-OQElE8IYLAryIy92mdyfnzvjCcgtRrMJk5hIGLgH0QbkEfYC',
+  enabled: true,
+};
+
+const DEFAULT_OPENAI_CONFIG: ProviderConfig = {
+  baseUrl: 'https://ai.nflow.red',
+  apiKey: 'sk-OQElE8IYLAryIy92mdyfnzvjCcgtRrMJk5hIGLgH0QbkEfYC',
+  enabled: true,
+};
 
 const defaultState: AppState = {
   apiConfig: {
-    baseUrl: DEFAULT_BASE_URL,
-    apiKey: DEFAULT_API_KEY,
+    currentProvider: 'openai',
+    providers: {
+      gemini: DEFAULT_GEMINI_CONFIG,
+      openai: DEFAULT_OPENAI_CONFIG,
+    },
     selectedModel: '',
     aspectRatio: '1:1',
     imageSize: '1K',
@@ -34,17 +46,30 @@ export function useAppState() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // 深度合并 apiConfig，如果存储的值为空则使用默认值
+        
+        // 深度合并 apiConfig
         const storedApiConfig = parsed.apiConfig || {};
+        const storedProviders = storedApiConfig.providers || {};
+        
         const mergedApiConfig: ApiConfig = {
-          baseUrl: storedApiConfig.baseUrl || DEFAULT_BASE_URL,
-          apiKey: storedApiConfig.apiKey || DEFAULT_API_KEY,
+          currentProvider: storedApiConfig.currentProvider || 'openai',
+          providers: {
+            gemini: {
+              ...DEFAULT_GEMINI_CONFIG,
+              ...(storedProviders.gemini || {}),
+            },
+            openai: {
+              ...DEFAULT_OPENAI_CONFIG,
+              ...(storedProviders.openai || {}),
+            },
+          },
           selectedModel: storedApiConfig.selectedModel || '',
           aspectRatio: storedApiConfig.aspectRatio || '1:1',
           imageSize: storedApiConfig.imageSize || '1K',
           openaiSize: storedApiConfig.openaiSize || 'auto',
           useCustomSize: storedApiConfig.useCustomSize || false,
         };
+        
         setState({
           ...defaultState,
           ...parsed,
@@ -68,11 +93,45 @@ export function useAppState() {
     }
   }, [state, isLoaded]);
 
-  // API 配置
+  // 获取当前供应商配置
+  const getCurrentProviderConfig = useCallback((): ProviderConfig => {
+    return state.apiConfig.providers[state.apiConfig.currentProvider];
+  }, [state.apiConfig]);
+
+  // 更新 API 配置
   const updateApiConfig = useCallback((config: Partial<ApiConfig>) => {
     setState((prev) => ({
       ...prev,
       apiConfig: { ...prev.apiConfig, ...config },
+    }));
+  }, []);
+
+  // 更新特定供应商配置
+  const updateProviderConfig = useCallback((provider: ApiProvider, config: Partial<ProviderConfig>) => {
+    setState((prev) => ({
+      ...prev,
+      apiConfig: {
+        ...prev.apiConfig,
+        providers: {
+          ...prev.apiConfig.providers,
+          [provider]: {
+            ...prev.apiConfig.providers[provider],
+            ...config,
+          },
+        },
+      },
+    }));
+  }, []);
+
+  // 切换供应商
+  const switchProvider = useCallback((provider: ApiProvider) => {
+    setState((prev) => ({
+      ...prev,
+      apiConfig: {
+        ...prev.apiConfig,
+        currentProvider: provider,
+        selectedModel: '', // 切换供应商时清空模型选择
+      },
     }));
   }, []);
 
@@ -160,6 +219,9 @@ export function useAppState() {
     state,
     isLoaded,
     updateApiConfig,
+    updateProviderConfig,
+    switchProvider,
+    getCurrentProviderConfig,
     createProject,
     updateProject,
     deleteProject,

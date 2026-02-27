@@ -1,6 +1,13 @@
 // API 提供商类型
 export type ApiProvider = 'gemini' | 'openai';
 
+// 单个供应商配置
+export interface ProviderConfig {
+  baseUrl: string;
+  apiKey: string;
+  enabled: boolean;
+}
+
 // 图片生成结果
 export interface GeneratedImage {
   id: string;
@@ -51,10 +58,16 @@ export interface OpenAISizeOption {
   description: string;
 }
 
-// API 配置
+// API 配置（支持多供应商）
 export interface ApiConfig {
-  baseUrl: string;
-  apiKey: string;
+  // 当前选中的供应商
+  currentProvider: ApiProvider;
+  // 各供应商配置
+  providers: {
+    gemini: ProviderConfig;
+    openai: ProviderConfig;
+  };
+  // 当前选中的模型
   selectedModel: string;
   // Gemini 参数
   aspectRatio: string;
@@ -123,11 +136,8 @@ export const OPENAI_SIZES: OpenAISizeOption[] = [
 // 已知的绘图模型（用于识别 API 类型）
 export const KNOWN_MODELS: Record<string, ApiProvider> = {
   // Gemini 系列
-  'gemini-2.0-flash-exp': 'gemini',
   'gemini-2.0-flash-exp-image-generation': 'gemini',
   'gemini-2.0-flash-preview-image-generation': 'gemini',
-  'gemini-2.5-pro-preview-06-05': 'gemini',
-  'gemini-exp-1206': 'gemini',
   // OpenAI / GPT Image 系列
   'gpt-image-1': 'openai',
   'gpt-image-1.5': 'openai',
@@ -136,6 +146,20 @@ export const KNOWN_MODELS: Record<string, ApiProvider> = {
   'dall-e-3': 'openai',
   'flux-kontext-pro': 'openai',
   'flux-kontext-max': 'openai',
+};
+
+// 供应商显示信息
+export const PROVIDER_INFO: Record<ApiProvider, { name: string; icon: string; description: string }> = {
+  gemini: {
+    name: 'Gemini',
+    icon: '✨',
+    description: 'Google Gemini 图像生成',
+  },
+  openai: {
+    name: 'GPT Image',
+    icon: '🤖',
+    description: 'OpenAI 图像生成系列',
+  },
 };
 
 // 根据模型名判断 API 类型

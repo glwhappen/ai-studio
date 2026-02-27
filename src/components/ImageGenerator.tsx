@@ -17,13 +17,13 @@ import { Sparkles, Loader2, AlertCircle, ImagePlus, X, ImageIcon } from 'lucide-
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ApiConfig, EditImageState, ApiProvider, getProviderFromModel } from '@/types';
-import { getProviderFromModel as getProvider } from '@/types';
+import type { ApiConfig, EditImageState, ApiProvider, ProviderConfig } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
+  currentProvider: ApiProvider;
+  currentProviderConfig: ProviderConfig;
   projectId: string;
-  provider: ApiProvider;
   editState: EditImageState | null;
   onGenerate: (params: {
     prompt: string;
@@ -61,8 +61,9 @@ interface GenerateResponse {
 
 export function ImageGenerator({
   apiConfig,
+  currentProvider,
+  currentProviderConfig,
   projectId,
-  provider,
   editState,
   onGenerate,
   onOpenSettings,
@@ -81,7 +82,8 @@ export function ImageGenerator({
   const [referenceImageMime, setReferenceImageMime] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isConfigured = apiConfig.baseUrl && apiConfig.apiKey;
+  const isConfigured = currentProviderConfig.baseUrl && currentProviderConfig.apiKey;
+  const isEnabled = currentProviderConfig.enabled;
   const hasModel = apiConfig.selectedModel && apiConfig.selectedModel.length > 0;
 
   // 处理编辑状态变化
@@ -183,7 +185,7 @@ export function ImageGenerator({
   };
 
   const handleGenerate = async () => {
-    if (!isConfigured) {
+    if (!isConfigured || !isEnabled) {
       setShowConfigAlert(true);
       return;
     }
@@ -205,13 +207,13 @@ export function ImageGenerator({
       const requestBody: Record<string, unknown> = {
         prompt: prompt.trim(),
         model: apiConfig.selectedModel,
-        provider,
-        baseUrl: apiConfig.baseUrl,
-        apiKey: apiConfig.apiKey,
+        provider: currentProvider,
+        baseUrl: currentProviderConfig.baseUrl,
+        apiKey: currentProviderConfig.apiKey,
       };
 
       // 根据提供商添加不同的参数
-      if (provider === 'gemini') {
+      if (currentProvider === 'gemini') {
         if (apiConfig.useCustomSize) {
           requestBody.aspectRatio = apiConfig.aspectRatio;
           requestBody.imageSize = apiConfig.imageSize;
@@ -228,8 +230,6 @@ export function ImageGenerator({
         requestBody.referenceImageMime = referenceImageMime;
       }
 
-      console.log('Request:', JSON.stringify(requestBody, null, 2));
-
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
@@ -239,8 +239,6 @@ export function ImageGenerator({
       });
 
       const data: GenerateResponse = await response.json();
-
-      console.log('Response:', JSON.stringify(data, null, 2));
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || '生成失败');
@@ -252,7 +250,7 @@ export function ImageGenerator({
           prompt: prompt.trim(),
           imageUrl,
           model: apiConfig.selectedModel,
-          provider: data.provider || provider,
+          provider: data.provider || currentProvider,
           aspectRatio: data.aspectRatio,
           imageSize: data.imageSize,
           size: data.size,
@@ -284,18 +282,20 @@ export function ImageGenerator({
           <ModelSelector
             apiConfig={apiConfig}
             selectedModel={apiConfig.selectedModel}
+            currentProvider={currentProvider}
+            currentProviderConfig={currentProviderConfig}
             onModelChange={onModelChange}
           />
         </div>
 
         {/* 尺寸选择 */}
         <SizeSelector
-          provider={provider}
+          provider={currentProvider}
           aspectRatio={apiConfig.aspectRatio}
           imageSize={apiConfig.imageSize}
           openaiSize={apiConfig.openaiSize}
           useCustomSize={apiConfig.useCustomSize}
-          apiKey={apiConfig.apiKey}
+          apiKey={currentProviderConfig.apiKey}
           onSizeChange={onSizeChange}
         />
 
@@ -407,7 +407,7 @@ export function ImageGenerator({
 
         <Button
           onClick={handleGenerate}
-          disabled={isGenerating || !prompt.trim() || !hasModel}
+          disabled={isGenerating || !prompt.trim() || !hasModel || !isConfigured || !isEnabled}
           className="w-full h-11"
           size="lg"
         >
@@ -436,7 +436,7 @@ export function ImageGenerator({
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">需要配置 API</AlertDialogTitle>
             <AlertDialogDescription>
-              请先在设置中配置你的 API 参数才能生成图片
+              请先在设置中配置当前供应商的 API 参数才能生成图片
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
