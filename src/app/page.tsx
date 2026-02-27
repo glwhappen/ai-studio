@@ -43,12 +43,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [useReferenceImage, setUseReferenceImage] = useState(false);
   const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('create');
 
   // 从 URL 参数读取提示词
   useEffect(() => {
     const promptParam = searchParams.get('prompt');
     if (promptParam) {
       setPrompt(promptParam);
+      setActiveTab('create'); // 有 prompt 参数时切换到创作工作台
     }
   }, [searchParams]);
 
@@ -113,6 +115,24 @@ export default function Home() {
   const pendingCount = images.filter(img => img.status === 'pending' || img.status === 'processing').length;
   const completedCount = images.filter(img => img.status === 'completed').length;
 
+  // 编辑图片（重新生成）
+  const handleEditImage = (image: { prompt: string; model: string; provider: string }) => {
+    setPrompt(image.prompt);
+    // 切换到对应的供应商
+    if (image.provider === 'gemini' || image.provider === 'openai') {
+      if (apiConfig.currentProvider !== image.provider) {
+        switchProvider(image.provider);
+      }
+    }
+    // 选择模型
+    if (image.model) {
+      updateApiConfig({ selectedModel: image.model });
+    }
+    // 切换到创作工作台
+    setActiveTab('create');
+    setError(null);
+  };
+
   if (!isLoaded) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -151,7 +171,7 @@ export default function Home() {
 
       {/* 主内容 */}
       <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="create" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="create" className="gap-1.5">
               <Sparkles className="h-4 w-4" />
@@ -314,6 +334,7 @@ export default function Home() {
                     images={images.slice(0, 12)}
                     onDeleteImage={deleteImage}
                     onTogglePublic={toggleImagePublic}
+                    onEdit={handleEditImage}
                     showStatus={true}
                   />
                 </CardContent>
@@ -343,6 +364,7 @@ export default function Home() {
                     images={images}
                     onDeleteImage={deleteImage}
                     onTogglePublic={toggleImagePublic}
+                    onEdit={handleEditImage}
                     showStatus={true}
                   />
                 )}

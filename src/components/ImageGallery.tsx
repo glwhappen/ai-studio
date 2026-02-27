@@ -30,6 +30,7 @@ import {
   Sparkles,
   Bot,
   Copy,
+  Pencil,
 } from 'lucide-react';
 import type { ImageRecord, ImageStatus } from '@/hooks/useAppState';
 
@@ -37,6 +38,7 @@ interface ImageGalleryProps {
   images: ImageRecord[];
   onDeleteImage: (id: string) => void;
   onTogglePublic?: (id: string, isPublic: boolean) => void;
+  onEdit?: (image: ImageRecord) => void;
   showStatus?: boolean;
 }
 
@@ -72,7 +74,7 @@ function StatusText({ status }: { status: ImageStatus }) {
   }
 }
 
-export function ImageGallery({ images, onDeleteImage, onTogglePublic, showStatus = false }: ImageGalleryProps) {
+export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, showStatus = false }: ImageGalleryProps) {
   const [selectedImage, setSelectedImage] = useState<ImageRecord | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -284,8 +286,32 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, showStatus
               </div>
             )}
             
-            {/* 删除按钮 - 非完成状态 */}
-            {image.status !== 'completed' && (
+            {/* 操作按钮 - 失败状态 */}
+            {image.status === 'failed' && onEdit && (
+              <div className="absolute top-2 right-2 flex gap-1">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onEdit(image)}
+                  title="编辑重试"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onDeleteImage(image.id)}
+                  title="删除"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            
+            {/* 删除按钮 - pending/processing 状态 */}
+            {(image.status === 'pending' || image.status === 'processing') && (
               <div className="absolute top-2 right-2">
                 <Button
                   variant="secondary"
