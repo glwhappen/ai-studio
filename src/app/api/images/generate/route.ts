@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { uploadBase64Image, isBase64DataUrl } from '@/lib/storage';
 import type { ApiProvider } from '@/types';
 
 interface GenerateRequest {
@@ -117,12 +118,24 @@ async function generateImageAsync(
     }
     
     if (imageUrl) {
+      // 如果是 base64 data URL，上传到对象存储
+      let storedUrl = imageUrl;
+      if (isBase64DataUrl(imageUrl)) {
+        try {
+          const key = await uploadBase64Image(imageUrl, `${imageId}.png`);
+          storedUrl = key; // 存储对象存储的 key
+        } catch (uploadError) {
+          console.error('Failed to upload image to storage:', uploadError);
+          // 上传失败时仍然保存 base64（兜底）
+        }
+      }
+      
       // 更新状态为 completed
       await client
         .from('images')
         .update({
           status: 'completed',
-          image_url: imageUrl,
+          image_url: storedUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', imageId);

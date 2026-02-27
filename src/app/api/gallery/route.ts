@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getImageUrl, isBase64DataUrl } from '@/lib/storage';
 
 // 获取公开作品集
 export async function GET(request: NextRequest) {
@@ -37,9 +38,28 @@ export async function GET(request: NextRequest) {
       throw countError;
     }
     
+    // 处理签名 URL
+    const images = await Promise.all((data || []).map(async (img) => {
+      let imageUrl = img.image_url;
+      
+      // 如果 image_url 不是 base64（即对象存储 key），生成签名 URL
+      if (imageUrl && !isBase64DataUrl(imageUrl) && !imageUrl.startsWith('http')) {
+        try {
+          imageUrl = await getImageUrl(imageUrl);
+        } catch (e) {
+          console.error('Failed to generate signed URL for:', imageUrl, e);
+        }
+      }
+      
+      return {
+        ...img,
+        image_url: imageUrl,
+      };
+    }));
+    
     return NextResponse.json({
       success: true,
-      images: data || [],
+      images,
       pagination: {
         page,
         limit,
