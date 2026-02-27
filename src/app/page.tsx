@@ -32,14 +32,19 @@ export default function Home() {
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
 
-  const handleGenerate = (prompt: string, imageUrl: string) => {
+  const handleGenerate = (prompt: string, imageUrl: string, model: string) => {
     if (currentProject) {
       addImage({
         url: imageUrl,
         prompt,
+        model,
         projectId: currentProject.id,
       });
     }
+  };
+
+  const handleModelChange = (model: string) => {
+    updateApiConfig({ selectedModel: model });
   };
 
   if (!isLoaded) {
@@ -191,6 +196,7 @@ export default function Home() {
                       projectId={currentProject.id}
                       onGenerate={handleGenerate}
                       onOpenSettings={() => setSettingsOpen(true)}
+                      onModelChange={handleModelChange}
                     />
                   </CardContent>
                 </Card>

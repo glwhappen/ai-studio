@@ -93,7 +93,14 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="absolute bottom-0 left-0 right-0 p-3">
                 <p className="text-xs text-white line-clamp-2">{image.prompt}</p>
-                <p className="text-xs text-white/70 mt-1">{formatDate(image.createdAt)}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-white/70">{formatDate(image.createdAt)}</p>
+                  {image.model && (
+                    <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                      {image.model.split('/').pop()}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -135,6 +142,11 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
             <DialogDescription className="line-clamp-2">
               {selectedImage?.prompt}
             </DialogDescription>
+            {selectedImage?.model && (
+              <p className="text-xs text-muted-foreground">
+                模型: {selectedImage.model.split('/').pop()}
+              </p>
+            )}
           </DialogHeader>
           {selectedImage && (
             <div className="relative">

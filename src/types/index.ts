@@ -4,6 +4,7 @@ export interface GeneratedImage {
   url: string;
   prompt: string;
   projectId: string;
+  model: string;
   createdAt: string;
 }
 
@@ -20,6 +21,14 @@ export interface Project {
 export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
+  selectedModel: string;
+}
+
+// Gemini 模型信息
+export interface GeminiModel {
+  name: string;
+  displayName: string;
+  supportedGenerationMethods?: string[];
 }
 
 // 应用状态

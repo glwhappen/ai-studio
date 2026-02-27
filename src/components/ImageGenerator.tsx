@@ -14,13 +14,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Sparkles, Loader2, AlertCircle, Settings } from 'lucide-react';
+import { ModelSelector } from '@/components/ModelSelector';
 import type { ApiConfig } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
   projectId: string;
-  onGenerate: (prompt: string, imageUrl: string) => void;
+  onGenerate: (prompt: string, imageUrl: string, model: string) => void;
   onOpenSettings: () => void;
+  onModelChange: (model: string) => void;
 }
 
 interface GeminiResponse {
@@ -45,6 +47,7 @@ export function ImageGenerator({
   projectId,
   onGenerate,
   onOpenSettings,
+  onModelChange,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -52,10 +55,16 @@ export function ImageGenerator({
   const [showConfigAlert, setShowConfigAlert] = useState(false);
 
   const isConfigured = apiConfig.baseUrl && apiConfig.apiKey;
+  const hasModel = apiConfig.selectedModel && apiConfig.selectedModel.length > 0;
 
   const handleGenerate = async () => {
     if (!isConfigured) {
       setShowConfigAlert(true);
+      return;
+    }
+
+    if (!hasModel) {
+      setError('请先选择一个模型');
       return;
     }
 
@@ -68,8 +77,10 @@ export function ImageGenerator({
     setError(null);
 
     try {
-      const url = `${apiConfig.baseUrl}/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiConfig.apiKey}`;
-      
+      const baseUrl = apiConfig.baseUrl.replace(/\/+$/, '');
+      const modelName = apiConfig.selectedModel.replace(/^models\//, '');
+      const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -108,7 +119,7 @@ export function ImageGenerator({
 
       if (imageData?.inlineData) {
         const imageUrl = `data:${imageData.inlineData.mimeType};base64,${imageData.inlineData.data}`;
-        onGenerate(prompt.trim(), imageUrl);
+        onGenerate(prompt.trim(), imageUrl, apiConfig.selectedModel);
         setPrompt('');
       } else {
         throw new Error('未生成图片，请尝试不同的提示词');
@@ -124,6 +135,17 @@ export function ImageGenerator({
   return (
     <>
       <div className="space-y-4">
+        {/* 模型选择 */}
+        <div className="space-y-2">
+          <Label className="text-base font-serif">选择模型</Label>
+          <ModelSelector
+            apiConfig={apiConfig}
+            selectedModel={apiConfig.selectedModel}
+            onModelChange={onModelChange}
+          />
+        </div>
+
+        {/* 提示词输入 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="prompt" className="text-base font-serif">
@@ -160,7 +182,7 @@ export function ImageGenerator({
 
         <Button
           onClick={handleGenerate}
-          disabled={isGenerating || !prompt.trim()}
+          disabled={isGenerating || !prompt.trim() || !hasModel}
           className="w-full h-11"
           size="lg"
         >

@@ -9,6 +9,7 @@ const defaultState: AppState = {
   apiConfig: {
     baseUrl: '',
     apiKey: '',
+    selectedModel: '',
   },
   projects: [],
   images: [],
