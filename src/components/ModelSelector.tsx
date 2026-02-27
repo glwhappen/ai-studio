@@ -104,6 +104,7 @@ export function ModelSelector({
         body: JSON.stringify({
           baseUrl: currentProviderConfig.baseUrl,
           apiKey: currentProviderConfig.apiKey,
+          provider: currentProvider, // 传递当前供应商，让后端只调用对应的 API
         }),
       });
 
@@ -114,27 +115,25 @@ export function ModelSelector({
       }
 
       const allModels = data.models || [];
-      // 根据当前供应商过滤模型
-      const filteredModels = allModels.filter(m => m.provider === currentProvider);
       
       // 保存到缓存
-      if (filteredModels.length > 0) {
-        saveModelsToCache(currentProvider, currentProviderConfig.baseUrl, filteredModels);
+      if (allModels.length > 0) {
+        saveModelsToCache(currentProvider, currentProviderConfig.baseUrl, allModels);
       }
       
-      setModels(filteredModels);
+      setModels(allModels);
       setHasLoadedFromCache(false);
 
-      // 如果当前选择的模型不在过滤列表中，清空选择
-      if (selectedModel && !filteredModels.find(m => m.name === selectedModel)) {
-        if (filteredModels.length > 0) {
-          onModelChange(filteredModels[0].name, currentProvider);
+      // 如果当前选择的模型不在列表中，清空选择
+      if (selectedModel && !allModels.find(m => m.name === selectedModel)) {
+        if (allModels.length > 0) {
+          onModelChange(allModels[0].name, currentProvider);
         } else {
           onModelChange('', currentProvider);
         }
-      } else if (!selectedModel && filteredModels.length > 0) {
+      } else if (!selectedModel && allModels.length > 0) {
         // 如果没有选择模型，自动选择第一个
-        onModelChange(filteredModels[0].name, currentProvider);
+        onModelChange(allModels[0].name, currentProvider);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
