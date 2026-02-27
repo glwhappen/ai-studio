@@ -10,10 +10,31 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, AlertCircle, Sparkles, Bot } from 'lucide-react';
-import type { ApiConfig, ModelInfo, ApiProvider, ProviderConfig } from '@/types';
+import type { ApiProvider, ProviderConfig } from '@/types';
 
 // 缓存 key 前缀
 const MODELS_CACHE_PREFIX = 'ai-image-models-cache-';
+
+// 模型信息
+interface ModelInfo {
+  name: string;
+  displayName: string;
+  provider: ApiProvider;
+}
+
+// API 配置状态（简化版）
+interface ApiConfigState {
+  currentProvider: ApiProvider;
+  providers: {
+    gemini: ProviderConfig;
+    openai: ProviderConfig;
+  };
+  selectedModel: string;
+  aspectRatio: string;
+  imageSize: string;
+  openaiSize: string;
+  useCustomSize: boolean;
+}
 
 // 生成缓存 key
 function getCacheKey(provider: ApiProvider, baseUrl: string): string {
@@ -46,11 +67,11 @@ function saveModelsToCache(provider: ApiProvider, baseUrl: string, models: Model
 }
 
 interface ModelSelectorProps {
-  apiConfig: ApiConfig;
+  apiConfig: ApiConfigState;
   selectedModel: string;
   currentProvider: ApiProvider;
   currentProviderConfig: ProviderConfig;
-  onModelChange: (model: string, provider: ApiProvider) => void;
+  onModelChange: (model: string) => void;
 }
 
 interface ModelsResponse {
@@ -86,7 +107,7 @@ export function ModelSelector({
         
         // 如果当前没有选择模型，自动选择第一个
         if (!selectedModel && cachedModels.length > 0) {
-          onModelChange(cachedModels[0].name, currentProvider);
+          onModelChange(cachedModels[0].name);
         }
         return;
       }
@@ -104,7 +125,7 @@ export function ModelSelector({
         body: JSON.stringify({
           baseUrl: currentProviderConfig.baseUrl,
           apiKey: currentProviderConfig.apiKey,
-          provider: currentProvider, // 传递当前供应商，让后端只调用对应的 API
+          provider: currentProvider,
         }),
       });
 
@@ -127,13 +148,13 @@ export function ModelSelector({
       // 如果当前选择的模型不在列表中，清空选择
       if (selectedModel && !allModels.find(m => m.name === selectedModel)) {
         if (allModels.length > 0) {
-          onModelChange(allModels[0].name, currentProvider);
+          onModelChange(allModels[0].name);
         } else {
-          onModelChange('', currentProvider);
+          onModelChange('');
         }
       } else if (!selectedModel && allModels.length > 0) {
         // 如果没有选择模型，自动选择第一个
-        onModelChange(allModels[0].name, currentProvider);
+        onModelChange(allModels[0].name);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
@@ -182,10 +203,7 @@ export function ModelSelector({
       <Select
         value={selectedModel}
         onValueChange={(value) => {
-          const model = models.find(m => m.name === value);
-          if (model) {
-            onModelChange(value, model.provider);
-          }
+          onModelChange(value);
         }}
         disabled={isLoading || models.length === 0}
       >

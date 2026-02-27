@@ -1,0 +1,273 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check } from 'lucide-react';
+import Link from 'next/link';
+
+interface PublicImage {
+  id: string;
+  prompt: string;
+  model: string;
+  provider: string;
+  image_url: string;
+  created_at: string;
+}
+
+export default function GalleryPage() {
+  const [images, setImages] = useState<PublicImage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  
+  // 分页
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchGallery = useCallback(async (pageNum: number) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/gallery?page=${pageNum}&limit=20`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setImages(data.images);
+        setTotalPages(data.pagination.totalPages);
+      }
+    } catch (error) {
+      console.error('Failed to fetch gallery:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGallery(page);
+  }, [page, fetchGallery]);
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const handleCopyPrompt = async (image: PublicImage) => {
+    try {
+      await navigator.clipboard.writeText(image.prompt);
+      setCopiedId(image.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
+  const handleDownload = async (image: PublicImage) => {
+    try {
+      const response = await fetch(image.image_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ai-${image.id.slice(0, 8)}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* 头部 */}
+      <header className="border-b bg-card sticky top-0 z-10">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          <h1 className="font-serif text-xl font-bold tracking-tight">
+            公开作品集
+          </h1>
+          <Link href="/">
+            <Button variant="ghost" size="sm">
+              返回创作
+            </Button>
+          </Link>
+        </div>
+      </header>
+
+      {/* 主内容 */}
+      <main className="container mx-auto px-4 py-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="font-serif flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-primary" />
+              社区精选作品
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : images.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">暂无公开作品</p>
+                <Link href="/">
+                  <Button variant="link" className="mt-2">
+                    成为第一个分享作品的人
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <>
+                {/* 瀑布流图片展示 */}
+                <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
+                  {images.map((image) => (
+                    <div
+                      key={image.id}
+                      className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid cursor-pointer"
+                      onClick={() => {
+                        setSelectedImage(image);
+                        setIsPreviewOpen(true);
+                      }}
+                    >
+                      <img
+                        src={image.image_url}
+                        alt={image.prompt}
+                        className="w-full h-auto transition-transform group-hover:scale-[1.02]"
+                      />
+                      {/* 悬停信息层 */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
+                          <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                        </div>
+                      </div>
+                      {/* 提供商标识 */}
+                      <div className="absolute top-2 left-2">
+                        {image.provider === 'gemini' ? (
+                          <div className="bg-primary/80 rounded-full p-1">
+                            <Sparkles className="h-3 w-3 text-white" />
+                          </div>
+                        ) : (
+                          <div className="bg-blue-500/80 rounded-full p-1">
+                            <Bot className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 分页 */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page === 1}
+                      onClick={() => setPage(p => p - 1)}
+                    >
+                      上一页
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {page} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page === totalPages}
+                      onClick={() => setPage(p => p + 1)}
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+
+      {/* 图片预览弹窗 */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="font-serif">作品详情</DialogTitle>
+            <DialogDescription className="sr-only">
+              作品详细信息和操作
+            </DialogDescription>
+          </DialogHeader>
+          {selectedImage && (
+            <div className="space-y-4">
+              {/* 图片 */}
+              <div className="relative bg-muted rounded-lg overflow-hidden">
+                <img
+                  src={selectedImage.image_url}
+                  alt={selectedImage.prompt}
+                  className="w-full h-auto max-h-[60vh] object-contain"
+                />
+              </div>
+              
+              {/* 信息 */}
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
+                  <p className="text-sm">{selectedImage.prompt}</p>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>模型: {selectedImage.model}</span>
+                  <span>{formatDate(selectedImage.created_at)}</span>
+                </div>
+              </div>
+              
+              {/* 操作按钮 */}
+              <div className="flex items-center gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownload(selectedImage)}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  下载
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleCopyPrompt(selectedImage)}
+                >
+                  {copiedId === selectedImage.id ? (
+                    <>
+                      <Check className="h-4 w-4 mr-1.5 text-green-500" />
+                      已复制
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-1.5" />
+                      复制提示词
+                    </>
+                  )}
+                </Button>
+                <Link href="/">
+                  <Button size="sm">
+                    <Sparkles className="h-4 w-4 mr-1.5" />
+                    用此提示词创作
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

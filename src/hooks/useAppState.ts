@@ -1,7 +1,41 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AppState, Project, GeneratedImage, ApiConfig, ProviderConfig, ApiProvider } from '@/types';
+import { getOrCreateUserToken } from '@/lib/user';
+import type { ApiProvider, ProviderConfig } from '@/types';
+
+// 图片状态类型
+export type ImageStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// 图片记录
+export interface ImageRecord {
+  id: string;
+  user_id: string;
+  prompt: string;
+  model: string;
+  provider: ApiProvider;
+  status: ImageStatus;
+  image_url: string | null;
+  error_message: string | null;
+  is_public: boolean;
+  config: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// API 配置
+export interface ApiConfigState {
+  currentProvider: ApiProvider;
+  providers: {
+    gemini: ProviderConfig;
+    openai: ProviderConfig;
+  };
+  selectedModel: string;
+  aspectRatio: string;
+  imageSize: string;
+  openaiSize: string;
+  useCustomSize: boolean;
+}
 
 const STORAGE_KEY = 'ai-image-generator-state';
 
@@ -18,217 +52,242 @@ const DEFAULT_OPENAI_CONFIG: ProviderConfig = {
   enabled: true,
 };
 
-const defaultState: AppState = {
-  apiConfig: {
-    currentProvider: 'openai',
-    providers: {
-      gemini: DEFAULT_GEMINI_CONFIG,
-      openai: DEFAULT_OPENAI_CONFIG,
-    },
-    selectedModel: '',
-    aspectRatio: '1:1',
-    imageSize: '1K',
-    openaiSize: 'auto',
-    useCustomSize: false,
+const defaultApiConfig: ApiConfigState = {
+  currentProvider: 'openai',
+  providers: {
+    gemini: DEFAULT_GEMINI_CONFIG,
+    openai: DEFAULT_OPENAI_CONFIG,
   },
-  projects: [],
-  images: [],
-  currentProjectId: null,
+  selectedModel: '',
+  aspectRatio: '1:1',
+  imageSize: '1K',
+  openaiSize: 'auto',
+  useCustomSize: false,
 };
 
 export function useAppState() {
-  const [state, setState] = useState<AppState>(defaultState);
+  const [apiConfig, setApiConfig] = useState<ApiConfigState>(defaultApiConfig);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [images, setImages] = useState<ImageRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 从 localStorage 加载数据
+  // 从 localStorage 加载配置
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        const storedProviders = parsed.apiConfig?.providers || {};
         
-        // 深度合并 apiConfig
-        const storedApiConfig = parsed.apiConfig || {};
-        const storedProviders = storedApiConfig.providers || {};
-        
-        const mergedApiConfig: ApiConfig = {
-          currentProvider: storedApiConfig.currentProvider || 'openai',
+        setApiConfig({
+          currentProvider: parsed.apiConfig?.currentProvider || 'openai',
           providers: {
-            gemini: {
-              ...DEFAULT_GEMINI_CONFIG,
-              ...(storedProviders.gemini || {}),
-            },
-            openai: {
-              ...DEFAULT_OPENAI_CONFIG,
-              ...(storedProviders.openai || {}),
-            },
+            gemini: { ...DEFAULT_GEMINI_CONFIG, ...storedProviders.gemini },
+            openai: { ...DEFAULT_OPENAI_CONFIG, ...storedProviders.openai },
           },
-          selectedModel: storedApiConfig.selectedModel || '',
-          aspectRatio: storedApiConfig.aspectRatio || '1:1',
-          imageSize: storedApiConfig.imageSize || '1K',
-          openaiSize: storedApiConfig.openaiSize || 'auto',
-          useCustomSize: storedApiConfig.useCustomSize || false,
-        };
-        
-        setState({
-          ...defaultState,
-          ...parsed,
-          apiConfig: mergedApiConfig,
+          selectedModel: parsed.apiConfig?.selectedModel || '',
+          aspectRatio: parsed.apiConfig?.aspectRatio || '1:1',
+          imageSize: parsed.apiConfig?.imageSize || '1K',
+          openaiSize: parsed.apiConfig?.openaiSize || 'auto',
+          useCustomSize: parsed.apiConfig?.useCustomSize || false,
         });
       }
     } catch (error) {
-      console.error('Failed to load state from localStorage:', error);
+      console.error('Failed to load state:', error);
     }
     setIsLoaded(true);
   }, []);
 
-  // 保存到 localStorage
+  // 保存配置到 localStorage
   useEffect(() => {
     if (isLoaded) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (error) {
-        console.error('Failed to save state to localStorage:', error);
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiConfig }));
     }
-  }, [state, isLoaded]);
+  }, [apiConfig, isLoaded]);
+
+  // 初始化用户（通过 API）
+  useEffect(() => {
+    if (!isLoaded) return;
+    
+    const initUser = async () => {
+      const token = getOrCreateUserToken();
+      if (token) {
+        try {
+          const response = await fetch('/api/user/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          });
+          
+          const data = await response.json();
+          if (data.success && data.userId) {
+            setUserId(data.userId);
+          }
+        } catch (error) {
+          console.error('Failed to init user:', error);
+        }
+      }
+    };
+    
+    initUser();
+  }, [isLoaded]);
+
+  // 获取用户图片列表
+  const fetchImages = useCallback(async () => {
+    if (!userId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/images?userId=${userId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setImages(data.images || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch images:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  // 初始加载和定期刷新（检查处理中的图片状态）
+  useEffect(() => {
+    if (!userId) return;
+    
+    fetchImages();
+    
+    // 每 3 秒检查一次处理中的图片
+    const interval = setInterval(() => {
+      const hasPending = images.some(img => img.status === 'pending' || img.status === 'processing');
+      if (hasPending) {
+        fetchImages();
+      }
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [userId, fetchImages, images]);
 
   // 获取当前供应商配置
   const getCurrentProviderConfig = useCallback((): ProviderConfig => {
-    return state.apiConfig.providers[state.apiConfig.currentProvider];
-  }, [state.apiConfig]);
+    return apiConfig.providers[apiConfig.currentProvider];
+  }, [apiConfig]);
 
   // 更新 API 配置
-  const updateApiConfig = useCallback((config: Partial<ApiConfig>) => {
-    setState((prev) => ({
-      ...prev,
-      apiConfig: { ...prev.apiConfig, ...config },
-    }));
+  const updateApiConfig = useCallback((config: Partial<ApiConfigState>) => {
+    setApiConfig(prev => ({ ...prev, ...config }));
   }, []);
 
   // 更新特定供应商配置
   const updateProviderConfig = useCallback((provider: ApiProvider, config: Partial<ProviderConfig>) => {
-    setState((prev) => ({
+    setApiConfig(prev => ({
       ...prev,
-      apiConfig: {
-        ...prev.apiConfig,
-        providers: {
-          ...prev.apiConfig.providers,
-          [provider]: {
-            ...prev.apiConfig.providers[provider],
-            ...config,
-          },
-        },
+      providers: {
+        ...prev.providers,
+        [provider]: { ...prev.providers[provider], ...config },
       },
     }));
   }, []);
 
   // 切换供应商
   const switchProvider = useCallback((provider: ApiProvider) => {
-    setState((prev) => ({
+    setApiConfig(prev => ({
       ...prev,
-      apiConfig: {
-        ...prev.apiConfig,
-        currentProvider: provider,
-        selectedModel: '', // 切换供应商时清空模型选择
-      },
+      currentProvider: provider,
+      selectedModel: '',
     }));
   }, []);
 
-  // 项目管理
-  const createProject = useCallback((name: string, description?: string) => {
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      name,
-      description,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setState((prev) => ({
-      ...prev,
-      projects: [...prev.projects, newProject],
-      currentProjectId: newProject.id,
-    }));
-    return newProject;
-  }, []);
+  // 提交图片生成任务
+  const submitGeneration = useCallback(async (prompt: string): Promise<string | null> => {
+    if (!userId) return null;
+    
+    const currentConfig = getCurrentProviderConfig();
+    
+    try {
+      const response = await fetch('/api/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          prompt,
+          model: apiConfig.selectedModel,
+          provider: apiConfig.currentProvider,
+          baseUrl: currentConfig.baseUrl,
+          apiKey: currentConfig.apiKey,
+          aspectRatio: apiConfig.useCustomSize ? apiConfig.aspectRatio : undefined,
+          imageSize: apiConfig.useCustomSize ? apiConfig.imageSize : undefined,
+          size: apiConfig.useCustomSize && apiConfig.openaiSize !== 'auto' ? apiConfig.openaiSize : undefined,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // 刷新图片列表
+        fetchImages();
+        return data.imageId;
+      } else {
+        throw new Error(data.error || '提交失败');
+      }
+    } catch (error) {
+      console.error('Failed to submit generation:', error);
+      throw error;
+    }
+  }, [userId, apiConfig, getCurrentProviderConfig, fetchImages]);
 
-  const updateProject = useCallback(
-    (id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>) => {
-      setState((prev) => ({
-        ...prev,
-        projects: prev.projects.map((p) =>
-          p.id === id
-            ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-            : p
-        ),
-      }));
-    },
-    []
-  );
+  // 切换图片公开状态
+  const toggleImagePublic = useCallback(async (imageId: string, isPublic: boolean) => {
+    try {
+      const response = await fetch(`/api/images/${imageId}/public`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic, userId }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setImages(prev => prev.map(img => 
+          img.id === imageId ? { ...img, is_public: isPublic } : img
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to toggle public:', error);
+    }
+  }, [userId]);
 
-  const deleteProject = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      projects: prev.projects.filter((p) => p.id !== id),
-      images: prev.images.filter((img) => img.projectId !== id),
-      currentProjectId:
-        prev.currentProjectId === id ? null : prev.currentProjectId,
-    }));
-  }, []);
-
-  const selectProject = useCallback((id: string | null) => {
-    setState((prev) => ({
-      ...prev,
-      currentProjectId: id,
-    }));
-  }, []);
-
-  // 图片管理
-  const addImage = useCallback((image: Omit<GeneratedImage, 'id' | 'createdAt'>) => {
-    const newImage: GeneratedImage = {
-      ...image,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setState((prev) => ({
-      ...prev,
-      images: [newImage, ...prev.images],
-    }));
-    return newImage;
-  }, []);
-
-  const deleteImage = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      images: prev.images.filter((img) => img.id !== id),
-    }));
-  }, []);
-
-  const getProjectImages = useCallback(
-    (projectId: string) => {
-      return state.images.filter((img) => img.projectId === projectId);
-    },
-    [state.images]
-  );
-
-  const getCurrentProject = useCallback(() => {
-    return state.projects.find((p) => p.id === state.currentProjectId);
-  }, [state.projects, state.currentProjectId]);
+  // 删除图片
+  const deleteImage = useCallback(async (imageId: string) => {
+    try {
+      const response = await fetch(`/api/images/${imageId}?userId=${userId}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setImages(prev => prev.filter(img => img.id !== imageId));
+      }
+    } catch (error) {
+      console.error('Failed to delete image:', error);
+    }
+  }, [userId]);
 
   return {
-    state,
+    apiConfig,
+    userId,
+    images,
+    isLoading,
     isLoaded,
     updateApiConfig,
     updateProviderConfig,
     switchProvider,
     getCurrentProviderConfig,
-    createProject,
-    updateProject,
-    deleteProject,
-    selectProject,
-    addImage,
+    fetchImages,
+    submitGeneration,
+    toggleImagePublic,
     deleteImage,
-    getProjectImages,
-    getCurrentProject,
   };
 }
