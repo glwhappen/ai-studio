@@ -28,7 +28,16 @@ export function useAppState() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        setState({ ...defaultState, ...parsed });
+        // 深度合并 apiConfig，确保默认值存在
+        const mergedApiConfig = {
+          ...defaultState.apiConfig,
+          ...(parsed.apiConfig || {}),
+        };
+        setState({
+          ...defaultState,
+          ...parsed,
+          apiConfig: mergedApiConfig,
+        });
       }
     } catch (error) {
       console.error('Failed to load state from localStorage:', error);

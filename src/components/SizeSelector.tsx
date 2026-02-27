@@ -15,19 +15,25 @@ import { IMAGE_SIZE_PRESETS, type ImageSizePreset } from '@/types';
 import { Maximize2, Square } from 'lucide-react';
 
 interface SizeSelectorProps {
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   onSizeChange: (width: number, height: number) => void;
 }
 
+const DEFAULT_WIDTH = 1024;
+const DEFAULT_HEIGHT = 1024;
+
 export function SizeSelector({ width, height, onSizeChange }: SizeSelectorProps) {
+  const actualWidth = width ?? DEFAULT_WIDTH;
+  const actualHeight = height ?? DEFAULT_HEIGHT;
+  
   const [isCustom, setIsCustom] = useState(false);
-  const [customWidth, setCustomWidth] = useState(width.toString());
-  const [customHeight, setCustomHeight] = useState(height.toString());
+  const [customWidth, setCustomWidth] = useState(actualWidth.toString());
+  const [customHeight, setCustomHeight] = useState(actualHeight.toString());
 
   // 检查当前尺寸是否匹配某个预设
   const currentPreset = IMAGE_SIZE_PRESETS.find(
-    (p) => p.width === width && p.height === height
+    (p) => p.width === actualWidth && p.height === actualHeight
   );
 
   const handlePresetChange = (value: string) => {
@@ -127,7 +133,7 @@ export function SizeSelector({ width, height, onSizeChange }: SizeSelectorProps)
       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md py-1.5">
         <span>当前尺寸:</span>
         <span className="font-mono font-medium text-foreground">
-          {width} × {height}
+          {actualWidth} × {actualHeight}
         </span>
       </div>
     </div>
