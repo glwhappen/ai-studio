@@ -15,14 +15,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Sparkles, Loader2, AlertCircle, Settings } from 'lucide-react';
 import { ModelSelector } from '@/components/ModelSelector';
+import { SizeSelector } from '@/components/SizeSelector';
 import type { ApiConfig } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
   projectId: string;
-  onGenerate: (prompt: string, imageUrl: string, model: string) => void;
+  onGenerate: (prompt: string, imageUrl: string, model: string, width: number, height: number) => void;
   onOpenSettings: () => void;
   onModelChange: (model: string) => void;
+  onSizeChange: (width: number, height: number) => void;
 }
 
 interface GeminiResponse {
@@ -48,6 +50,7 @@ export function ImageGenerator({
   onGenerate,
   onOpenSettings,
   onModelChange,
+  onSizeChange,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -81,25 +84,37 @@ export function ImageGenerator({
       const modelName = apiConfig.selectedModel.replace(/^models\//, '');
       const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
 
+      // 构建请求体，包含尺寸参数
+      const requestBody: Record<string, unknown> = {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      };
+
+      // 添加尺寸配置（如果模型支持）
+      if (apiConfig.imageWidth && apiConfig.imageHeight) {
+        requestBody.generationConfig = {
+          ...requestBody.generationConfig as Record<string, unknown>,
+          width: apiConfig.imageWidth,
+          height: apiConfig.imageHeight,
+        };
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -119,7 +134,13 @@ export function ImageGenerator({
 
       if (imageData?.inlineData) {
         const imageUrl = `data:${imageData.inlineData.mimeType};base64,${imageData.inlineData.data}`;
-        onGenerate(prompt.trim(), imageUrl, apiConfig.selectedModel);
+        onGenerate(
+          prompt.trim(),
+          imageUrl,
+          apiConfig.selectedModel,
+          apiConfig.imageWidth,
+          apiConfig.imageHeight
+        );
         setPrompt('');
       } else {
         throw new Error('未生成图片，请尝试不同的提示词');
@@ -134,7 +155,7 @@ export function ImageGenerator({
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* 模型选择 */}
         <div className="space-y-2">
           <Label className="text-base font-serif">选择模型</Label>
@@ -144,6 +165,13 @@ export function ImageGenerator({
             onModelChange={onModelChange}
           />
         </div>
+
+        {/* 尺寸选择 */}
+        <SizeSelector
+          width={apiConfig.imageWidth}
+          height={apiConfig.imageHeight}
+          onSizeChange={onSizeChange}
+        />
 
         {/* 提示词输入 */}
         <div className="space-y-2">

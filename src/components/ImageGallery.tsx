@@ -95,11 +95,18 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
                 <p className="text-xs text-white line-clamp-2">{image.prompt}</p>
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-white/70">{formatDate(image.createdAt)}</p>
-                  {image.model && (
-                    <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                      {image.model.split('/').pop()}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {image.width && image.height && (
+                      <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                        {image.width}×{image.height}
+                      </span>
+                    )}
+                    {image.model && (
+                      <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                        {image.model.split('/').pop()}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -142,11 +149,18 @@ export function ImageGallery({ images, onDeleteImage }: ImageGalleryProps) {
             <DialogDescription className="line-clamp-2">
               {selectedImage?.prompt}
             </DialogDescription>
-            {selectedImage?.model && (
-              <p className="text-xs text-muted-foreground">
-                模型: {selectedImage.model.split('/').pop()}
-              </p>
-            )}
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {selectedImage?.model && (
+                <span className="bg-muted px-2 py-0.5 rounded">
+                  模型: {selectedImage.model.split('/').pop()}
+                </span>
+              )}
+              {selectedImage?.width && selectedImage?.height && (
+                <span className="bg-muted px-2 py-0.5 rounded">
+                  尺寸: {selectedImage.width}×{selectedImage.height}
+                </span>
+              )}
+            </div>
           </DialogHeader>
           {selectedImage && (
             <div className="relative">

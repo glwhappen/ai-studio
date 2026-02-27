@@ -10,6 +10,8 @@ const defaultState: AppState = {
     baseUrl: '',
     apiKey: '',
     selectedModel: '',
+    imageWidth: 1024,
+    imageHeight: 1024,
   },
   projects: [],
   images: [],

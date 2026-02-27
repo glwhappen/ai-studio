@@ -32,12 +32,14 @@ export default function Home() {
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
 
-  const handleGenerate = (prompt: string, imageUrl: string, model: string) => {
+  const handleGenerate = (prompt: string, imageUrl: string, model: string, width: number, height: number) => {
     if (currentProject) {
       addImage({
         url: imageUrl,
         prompt,
         model,
+        width,
+        height,
         projectId: currentProject.id,
       });
     }
@@ -45,6 +47,10 @@ export default function Home() {
 
   const handleModelChange = (model: string) => {
     updateApiConfig({ selectedModel: model });
+  };
+
+  const handleSizeChange = (width: number, height: number) => {
+    updateApiConfig({ imageWidth: width, imageHeight: height });
   };
 
   if (!isLoaded) {
@@ -197,6 +203,7 @@ export default function Home() {
                       onGenerate={handleGenerate}
                       onOpenSettings={() => setSettingsOpen(true)}
                       onModelChange={handleModelChange}
+                      onSizeChange={handleSizeChange}
                     />
                   </CardContent>
                 </Card>
