@@ -14,7 +14,7 @@ const DEFAULT_GEMINI_CONFIG: ProviderConfig = {
 
 const DEFAULT_OPENAI_CONFIG: ProviderConfig = {
   baseUrl: 'https://ai.nflow.red',
-  apiKey: 'sk-OQElE8IYLAryIy92mdyfnzvjCcgtRrMJk5hIGLgH0QbkEfYC',
+  apiKey: 'sk-V7ZFfhmndbAQXklSz2IC7gV68WGggGC5nxnlv0cXRq6ob3DN',
   enabled: true,
 };
 
