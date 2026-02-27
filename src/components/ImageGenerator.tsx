@@ -86,16 +86,18 @@ export function ImageGenerator({
       const modelName = apiConfig.selectedModel.replace(/^models\//, '');
       const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
 
-      // 构建增强的提示词（包含尺寸信息）
-      const resolutionTier = apiConfig.resolution || '1k';
-      const resolutionHints: Record<string, string> = {
-        '1k': 'standard resolution',
-        '2k': 'high resolution, 2K quality, detailed',
-        '4k': 'ultra high resolution, 4K quality, extremely detailed, sharp',
-      };
+      // 构建提示词 - 只有当分辨率设置开启时才添加尺寸描述
+      let finalPrompt = prompt.trim();
       
-      // 在提示词中添加尺寸和质量描述
-      const enhancedPrompt = `${prompt.trim()}\n\n[Image specifications: ${resolutionHints[resolutionTier] || resolutionHints['1k']}, aspect ratio ${apiConfig.imageWidth}:${apiConfig.imageHeight}]`;
+      if (apiConfig.resolution) {
+        const resolutionHints: Record<string, string> = {
+          '1k': 'standard resolution',
+          '2k': 'high resolution, 2K quality, detailed',
+          '4k': 'ultra high resolution, 4K quality, extremely detailed, sharp',
+        };
+        const hint = resolutionHints[apiConfig.resolution] || resolutionHints['1k'];
+        finalPrompt = `${prompt.trim()}\n\n[Image specifications: ${hint}, aspect ratio ${apiConfig.imageWidth}:${apiConfig.imageHeight}]`;
+      }
 
       // 构建请求体
       const requestBody: Record<string, unknown> = {
@@ -103,7 +105,7 @@ export function ImageGenerator({
           {
             parts: [
               {
-                text: enhancedPrompt,
+                text: finalPrompt,
               },
             ],
           },

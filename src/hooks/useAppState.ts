@@ -12,7 +12,7 @@ const defaultState: AppState = {
     selectedModel: '',
     imageWidth: 1024,
     imageHeight: 1024,
-    resolution: '1k',
+    resolution: '', // 空字符串表示未启用高级尺寸设置
   },
   projects: [],
   images: [],
