@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon } from 'lucide-react';
 import Link from 'next/link';
 
 interface PublicImage {
@@ -34,6 +34,11 @@ function getSizeText(image: PublicImage): string | null {
     return config.size as string;
   }
   return null;
+}
+
+// 检查是否有参考图
+function hasReferenceImage(image: PublicImage): boolean {
+  return !!image.config?.hasReferenceImage;
 }
 
 // 构建创作链接参数
@@ -195,7 +200,7 @@ export default function GalleryPage() {
                         </div>
                       </div>
                       {/* 提供商标识 */}
-                      <div className="absolute top-2 left-2">
+                      <div className="absolute top-2 left-2 flex items-center gap-1">
                         {image.provider === 'gemini' ? (
                           <div className="bg-primary/80 rounded-full p-1">
                             <Sparkles className="h-3 w-3 text-white" />
@@ -203,6 +208,12 @@ export default function GalleryPage() {
                         ) : (
                           <div className="bg-blue-500/80 rounded-full p-1">
                             <Bot className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                        {/* 参考图标识 */}
+                        {hasReferenceImage(image) && (
+                          <div className="bg-amber-500/80 rounded-full p-1" title="基于参考图生成">
+                            <RefImageIcon className="h-3 w-3 text-white" />
                           </div>
                         )}
                       </div>
@@ -268,9 +279,15 @@ export default function GalleryPage() {
                     <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
                     <p className="text-sm">{selectedImage.prompt}</p>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                     <span>模型: {selectedImage.model}</span>
                     {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
+                    {hasReferenceImage(selectedImage) && (
+                      <span className="text-amber-600 flex items-center gap-1">
+                        <RefImageIcon className="h-3 w-3" />
+                        基于参考图生成
+                      </span>
+                    )}
                     <span>{formatDate(selectedImage.created_at)}</span>
                   </div>
                 </div>

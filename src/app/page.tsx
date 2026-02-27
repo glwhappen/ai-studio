@@ -45,14 +45,20 @@ function HomeContent() {
   const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
   const [activeTab, setActiveTab] = useState('create');
 
-  // 从 URL 参数读取提示词和配置
+  // 从 URL 参数读取提示词和配置（需要等待 localStorage 状态恢复）
   useEffect(() => {
+    // 必须等待状态加载完成后再处理 URL 参数
+    if (!isLoaded) return;
+    
     const promptParam = searchParams.get('prompt');
     const modelParam = searchParams.get('model');
     const providerParam = searchParams.get('provider');
     const aspectRatioParam = searchParams.get('aspectRatio');
     const imageSizeParam = searchParams.get('imageSize');
     const sizeParam = searchParams.get('size');
+    
+    // 只有有参数时才处理
+    if (!promptParam && !modelParam && !providerParam) return;
     
     if (promptParam) {
       setPrompt(promptParam);
@@ -61,9 +67,7 @@ function HomeContent() {
     
     // 自动选择供应商
     if (providerParam && (providerParam === 'gemini' || providerParam === 'openai')) {
-      if (apiConfig.currentProvider !== providerParam) {
-        switchProvider(providerParam);
-      }
+      switchProvider(providerParam);
     }
     
     // 自动选择模型
@@ -80,7 +84,7 @@ function HomeContent() {
         ...(sizeParam && { openaiSize: sizeParam }),
       });
     }
-  }, [searchParams]);
+  }, [searchParams, isLoaded, switchProvider, updateApiConfig]);
 
   const currentProvider = apiConfig.currentProvider;
   const currentProviderConfig = getCurrentProviderConfig();
