@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getOrCreateUserToken } from '@/lib/user';
 import type { ApiProvider, ProviderConfig } from '@/types';
 
@@ -71,6 +71,9 @@ export function useAppState() {
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // 使用 ref 来追踪是否有处理中的图片，避免 useEffect 依赖 images
+  const hasPendingRef = useRef(false);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -143,7 +146,13 @@ export function useAppState() {
       const data = await response.json();
       
       if (data.success) {
-        setImages(data.images || []);
+        const newImages = data.images || [];
+        setImages(newImages);
+        
+        // 更新 ref
+        hasPendingRef.current = newImages.some(
+          (img: ImageRecord) => img.status === 'pending' || img.status === 'processing'
+        );
       }
     } catch (error) {
       console.error('Failed to fetch images:', error);
@@ -152,22 +161,24 @@ export function useAppState() {
     }
   }, [userId]);
 
-  // 初始加载和定期刷新（检查处理中的图片状态）
+  // 初始加载图片
+  useEffect(() => {
+    if (!userId) return;
+    fetchImages();
+  }, [userId, fetchImages]);
+
+  // 定期刷新（检查处理中的图片状态）
   useEffect(() => {
     if (!userId) return;
     
-    fetchImages();
-    
-    // 每 3 秒检查一次处理中的图片
     const interval = setInterval(() => {
-      const hasPending = images.some(img => img.status === 'pending' || img.status === 'processing');
-      if (hasPending) {
+      if (hasPendingRef.current) {
         fetchImages();
       }
     }, 3000);
     
     return () => clearInterval(interval);
-  }, [userId, fetchImages, images]);
+  }, [userId, fetchImages]);
 
   // 获取当前供应商配置
   const getCurrentProviderConfig = useCallback((): ProviderConfig => {
@@ -225,6 +236,8 @@ export function useAppState() {
       const data = await response.json();
       
       if (data.success) {
+        // 标记有处理中的任务
+        hasPendingRef.current = true;
         // 刷新图片列表
         fetchImages();
         return data.imageId;
