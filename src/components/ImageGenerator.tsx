@@ -16,7 +16,7 @@ import {
 import { Sparkles, Loader2, AlertCircle, Settings } from 'lucide-react';
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
-import type { ApiConfig } from '@/types';
+import type { ApiConfig, RESOLUTION_TIERS } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
@@ -24,7 +24,7 @@ interface ImageGeneratorProps {
   onGenerate: (prompt: string, imageUrl: string, model: string, width: number, height: number) => void;
   onOpenSettings: () => void;
   onModelChange: (model: string) => void;
-  onSizeChange: (width: number, height: number) => void;
+  onSizeChange: (width: number, height: number, resolution: string) => void;
 }
 
 interface GeminiResponse {
@@ -86,13 +86,24 @@ export function ImageGenerator({
       const modelName = apiConfig.selectedModel.replace(/^models\//, '');
       const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
 
-      // 构建请求体，包含尺寸参数
+      // 构建增强的提示词（包含尺寸信息）
+      const resolutionTier = apiConfig.resolution || '1k';
+      const resolutionHints: Record<string, string> = {
+        '1k': 'standard resolution',
+        '2k': 'high resolution, 2K quality, detailed',
+        '4k': 'ultra high resolution, 4K quality, extremely detailed, sharp',
+      };
+      
+      // 在提示词中添加尺寸和质量描述
+      const enhancedPrompt = `${prompt.trim()}\n\n[Image specifications: ${resolutionHints[resolutionTier] || resolutionHints['1k']}, aspect ratio ${apiConfig.imageWidth}:${apiConfig.imageHeight}]`;
+
+      // 构建请求体
       const requestBody: Record<string, unknown> = {
         contents: [
           {
             parts: [
               {
-                text: prompt,
+                text: enhancedPrompt,
               },
             ],
           },
@@ -101,15 +112,6 @@ export function ImageGenerator({
           responseModalities: ['TEXT', 'IMAGE'],
         },
       };
-
-      // 添加尺寸配置（如果模型支持）
-      if (apiConfig.imageWidth && apiConfig.imageHeight) {
-        requestBody.generationConfig = {
-          ...requestBody.generationConfig as Record<string, unknown>,
-          width: apiConfig.imageWidth,
-          height: apiConfig.imageHeight,
-        };
-      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -193,6 +195,7 @@ export function ImageGenerator({
         <SizeSelector
           width={apiConfig.imageWidth}
           height={apiConfig.imageHeight}
+          resolution={apiConfig.resolution}
           onSizeChange={onSizeChange}
         />
 

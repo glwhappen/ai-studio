@@ -49,8 +49,8 @@ export default function Home() {
     updateApiConfig({ selectedModel: model });
   };
 
-  const handleSizeChange = (width: number, height: number) => {
-    updateApiConfig({ imageWidth: width, imageHeight: height });
+  const handleSizeChange = (width: number, height: number, resolution: string) => {
+    updateApiConfig({ imageWidth: width, imageHeight: height, resolution });
   };
 
   if (!isLoaded) {

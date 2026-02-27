@@ -12,6 +12,7 @@ const defaultState: AppState = {
     selectedModel: '',
     imageWidth: 1024,
     imageHeight: 1024,
+    resolution: '1k',
   },
   projects: [],
   images: [],
