@@ -11,16 +11,18 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IMAGE_SIZES, ASPECT_RATIOS } from '@/types';
+import { DEFAULT_API_KEY } from '@/hooks/useAppState';
 import { Settings2, Square, Monitor } from 'lucide-react';
 
 interface SizeSelectorProps {
   aspectRatio: string;
   imageSize: string;
   useCustomSize: boolean;
+  apiKey: string;
   onSizeChange: (aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
 }
 
-export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChange }: SizeSelectorProps) {
+export function SizeSelector({ aspectRatio, imageSize, useCustomSize, apiKey, onSizeChange }: SizeSelectorProps) {
   const handleCustomSizeChange = (checked: boolean) => {
     onSizeChange(aspectRatio, imageSize, checked);
   };
@@ -34,6 +36,12 @@ export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChan
   };
 
   const currentAspect = ASPECT_RATIOS.find(a => a.value === aspectRatio);
+  
+  // 如果使用默认 key，隐藏 4K 选项
+  const isDefaultKey = apiKey === DEFAULT_API_KEY;
+  const availableSizes = isDefaultKey 
+    ? IMAGE_SIZES.filter(size => size.id !== '4k')
+    : IMAGE_SIZES;
 
   return (
     <div className="space-y-3">
@@ -91,7 +99,7 @@ export function SizeSelector({ aspectRatio, imageSize, useCustomSize, onSizeChan
               分辨率
             </Label>
             <div className="flex gap-2">
-              {IMAGE_SIZES.map((size) => (
+              {availableSizes.map((size) => (
                 <Button
                   key={size.id}
                   type="button"

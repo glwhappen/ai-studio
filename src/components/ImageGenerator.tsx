@@ -265,6 +265,7 @@ export function ImageGenerator({
           aspectRatio={apiConfig.aspectRatio}
           imageSize={apiConfig.imageSize}
           useCustomSize={apiConfig.useCustomSize}
+          apiKey={apiConfig.apiKey}
           onSizeChange={onSizeChange}
         />
 

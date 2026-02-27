@@ -5,10 +5,14 @@ import type { AppState, Project, GeneratedImage, ApiConfig } from '@/types';
 
 const STORAGE_KEY = 'gemini-image-generator-state';
 
+// 默认 API 配置
+export const DEFAULT_BASE_URL = 'https://ai.nflow.red';
+export const DEFAULT_API_KEY = 'sk-OQElE8IYLAryIy92mdyfnzvjCcgtRrMJk5hIGLgH0QbkEfYC';
+
 const defaultState: AppState = {
   apiConfig: {
-    baseUrl: '',
-    apiKey: '',
+    baseUrl: DEFAULT_BASE_URL,
+    apiKey: DEFAULT_API_KEY,
     selectedModel: '',
     aspectRatio: '1:1',
     imageSize: '1K',
@@ -29,10 +33,15 @@ export function useAppState() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // 深度合并 apiConfig，确保默认值存在
+        // 深度合并 apiConfig，如果存储的值为空则使用默认值
+        const storedApiConfig = parsed.apiConfig || {};
         const mergedApiConfig = {
-          ...defaultState.apiConfig,
-          ...(parsed.apiConfig || {}),
+          baseUrl: storedApiConfig.baseUrl || DEFAULT_BASE_URL,
+          apiKey: storedApiConfig.apiKey || DEFAULT_API_KEY,
+          selectedModel: storedApiConfig.selectedModel || '',
+          aspectRatio: storedApiConfig.aspectRatio || '1:1',
+          imageSize: storedApiConfig.imageSize || '1K',
+          useCustomSize: storedApiConfig.useCustomSize || false,
         };
         setState({
           ...defaultState,
