@@ -29,6 +29,7 @@ interface ImageGeneratorProps {
 
 interface GeminiResponse {
   candidates?: Array<{
+    finishReason?: string;
     content?: {
       parts?: Array<{
         inlineData?: {
@@ -41,6 +42,7 @@ interface GeminiResponse {
   }>;
   error?: {
     message: string;
+    code?: number;
   };
 }
 
@@ -125,7 +127,7 @@ export function ImageGenerator({
       const data: GeminiResponse = await response.json();
 
       if (data.error) {
-        throw new Error(data.error.message);
+        throw new Error(`API 错误: ${data.error.message}`);
       }
 
       const imageData = data.candidates?.[0]?.content?.parts?.find(
@@ -143,11 +145,32 @@ export function ImageGenerator({
         );
         setPrompt('');
       } else {
-        throw new Error('未生成图片，请尝试不同的提示词');
+        // 检查是否有文本返回
+        const textData = data.candidates?.[0]?.content?.parts?.find(
+          (part) => part.text
+        );
+        
+        let errorMsg = '未生成图片';
+        
+        if (textData?.text) {
+          errorMsg += `，模型返回: "${textData.text.slice(0, 200)}${textData.text.length > 200 ? '...' : ''}"`;
+        }
+        
+        // 检查 finishReason
+        const finishReason = data.candidates?.[0]?.finishReason;
+        if (finishReason && finishReason !== 'STOP') {
+          errorMsg += `\n结束原因: ${finishReason}`;
+        }
+        
+        // 显示完整响应便于调试
+        console.log('API 响应:', JSON.stringify(data, null, 2));
+        
+        throw new Error(errorMsg);
       }
     } catch (err) {
       console.error('Generation error:', err);
-      setError(err instanceof Error ? err.message : '生成失败，请重试');
+      const errorMsg = err instanceof Error ? err.message : '生成失败，请重试';
+      setError(errorMsg);
     } finally {
       setIsGenerating(false);
     }
@@ -202,9 +225,11 @@ export function ImageGenerator({
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{error}</span>
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div className="whitespace-pre-wrap break-words flex-1">{error}</div>
+            </div>
           </div>
         )}
 
