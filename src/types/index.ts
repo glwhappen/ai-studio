@@ -142,6 +142,27 @@ export const KNOWN_MODELS: Record<string, ApiProvider> = {
 export function getProviderFromModel(modelName: string): ApiProvider {
   const normalizedName = modelName.toLowerCase().replace(/^models\//, '');
   
+  // Gemini 绘图模型：同时包含 "gemini" 和 "image"
+  if (normalizedName.includes('gemini') && normalizedName.includes('image')) {
+    return 'gemini';
+  }
+  
+  // GPT Image 系列：包含 "gpt-image"
+  if (normalizedName.includes('gpt-image')) {
+    return 'openai';
+  }
+  
+  // DALL-E 系列：使用 OpenAI 格式
+  if (normalizedName.includes('dall-e') || normalizedName.includes('dalle')) {
+    return 'openai';
+  }
+  
+  // Flux Kontext 系列：使用 OpenAI 格式
+  if (normalizedName.includes('flux') && normalizedName.includes('kontext')) {
+    return 'openai';
+  }
+  
+  // 检查已知模型
   for (const [pattern, provider] of Object.entries(KNOWN_MODELS)) {
     if (normalizedName.includes(pattern.toLowerCase())) {
       return provider;

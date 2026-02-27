@@ -23,17 +23,12 @@ interface OpenAIModelsResponse {
   }>;
 }
 
-// 关键词过滤：只保留绘图相关模型
-const IMAGE_MODEL_KEYWORDS = [
-  'gemini', 'gpt-image', 'dall-e', 'flux', 'imagen', 'stable-diffusion',
-  'midjourney', 'image', 'draw', 'paint', 'art', 'kontext'
-];
-
 // 排除关键词
 const EXCLUDE_KEYWORDS = [
   'embedding', 'whisper', 'tts', 'speech', 'audio', 'moderation'
 ];
 
+// 判断是否为图片生成模型
 function isImageModel(modelName: string): boolean {
   const name = modelName.toLowerCase();
   
@@ -42,8 +37,42 @@ function isImageModel(modelName: string): boolean {
     return false;
   }
   
-  // 包含关键词
-  return IMAGE_MODEL_KEYWORDS.some(kw => name.includes(kw));
+  // Gemini 绘图模型：必须同时包含 "gemini" 和 "image"
+  if (name.includes('gemini') && name.includes('image')) {
+    return true;
+  }
+  
+  // OpenAI/GPT Image 系列：包含 "gpt-image"
+  if (name.includes('gpt-image')) {
+    return true;
+  }
+  
+  // DALL-E 系列
+  if (name.includes('dall-e') || name.includes('dalle')) {
+    return true;
+  }
+  
+  // Flux 系列
+  if (name.includes('flux') && name.includes('kontext')) {
+    return true;
+  }
+  
+  // Imagen 系列
+  if (name.includes('imagen')) {
+    return true;
+  }
+  
+  // Stable Diffusion 系列
+  if (name.includes('stable-diffusion') || name.includes('sd-')) {
+    return true;
+  }
+  
+  // Midjourney 系列
+  if (name.includes('midjourney')) {
+    return true;
+  }
+  
+  return false;
 }
 
 export async function POST(request: NextRequest) {
