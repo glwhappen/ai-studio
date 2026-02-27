@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel } from '@/components/SettingsPanel';
@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock } from 'lucide-react';
 import Link from 'next/link';
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams();
   const {
     apiConfig,
@@ -374,5 +374,20 @@ export default function Home() {
         </Tabs>
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Sparkles className="h-8 w-8 animate-pulse text-primary" />
+          <p className="text-sm text-muted-foreground">加载中...</p>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
