@@ -62,7 +62,7 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
     onEditImage({
       prompt: image.prompt,
       model: image.model,
-      provider: image.provider,
+      provider: image.provider || 'gemini',
       aspectRatio: image.aspectRatio,
       imageSize: image.imageSize,
       size: image.size,
@@ -77,7 +77,7 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
     onReuseSettings({
       prompt: image.prompt,
       model: image.model,
-      provider: image.provider,
+      provider: image.provider || 'gemini',
       aspectRatio: image.aspectRatio,
       imageSize: image.imageSize,
       size: image.size,
@@ -97,11 +97,15 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
   };
 
   // 获取尺寸显示文本
-  const getSizeText = (image: GeneratedImage): string | null => {
-    if (image.provider === 'gemini' && image.aspectRatio && image.imageSize) {
+  const getSizeText = (image: GeneratedImage | null): string | null => {
+    if (!image) return null;
+    // 兼容旧数据，没有 provider 字段时尝试从其他字段推断
+    const provider = image.provider || 'gemini';
+    
+    if (provider === 'gemini' && image.aspectRatio && image.imageSize) {
       return `${image.aspectRatio} · ${image.imageSize}`;
     }
-    if (image.provider === 'openai' && image.size) {
+    if (provider === 'openai' && image.size) {
       return image.size;
     }
     return null;
@@ -157,7 +161,7 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
             </div>
             {/* 提供商标识 */}
             <div className="absolute top-2 left-2">
-              {image.provider === 'gemini' ? (
+              {(image.provider || 'gemini') === 'gemini' ? (
                 <div className="bg-primary/80 rounded-full p-1">
                   <Sparkles className="h-3 w-3 text-white" />
                 </div>
@@ -219,7 +223,7 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               {selectedImage?.model && (
                 <span className="bg-muted px-2 py-0.5 rounded flex items-center gap-1">
-                  {selectedImage.provider === 'gemini' ? (
+                  {(selectedImage.provider || 'gemini') === 'gemini' ? (
                     <Sparkles className="h-3 w-3" />
                   ) : (
                     <Bot className="h-3 w-3" />
@@ -227,9 +231,9 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
                   模型: {selectedImage.model.split('/').pop()}
                 </span>
               )}
-              {getSizeText(selectedImage!) && (
+              {getSizeText(selectedImage) && (
                 <span className="bg-muted px-2 py-0.5 rounded">
-                  尺寸: {getSizeText(selectedImage!)}
+                  尺寸: {getSizeText(selectedImage)}
                 </span>
               )}
             </div>
