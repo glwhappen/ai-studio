@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getImageUrl, isBase64DataUrl } from '@/lib/storage';
+import { getImageUrl, isBase64DataUrl, uploadBase64Image } from '@/lib/storage';
 
 // 获取公开作品集
 export async function GET(request: NextRequest) {
@@ -38,16 +38,33 @@ export async function GET(request: NextRequest) {
       throw countError;
     }
     
-    // 处理签名 URL
+    // 处理图片 URL（自动迁移 base64 到对象存储）
     const images = await Promise.all((data || []).map(async (img) => {
       let imageUrl = img.image_url;
       
-      // 如果 image_url 不是 base64（即对象存储 key），生成签名 URL
-      if (imageUrl && !isBase64DataUrl(imageUrl) && !imageUrl.startsWith('http')) {
+      // 如果是 base64，上传到对象存储并更新数据库
+      if (imageUrl && isBase64DataUrl(imageUrl)) {
+        try {
+          const key = await uploadBase64Image(imageUrl, `${img.id}.png`);
+          // 更新数据库
+          await client
+            .from('images')
+            .update({ image_url: key })
+            .eq('id', img.id);
+          // 生成签名 URL
+          imageUrl = await getImageUrl(key);
+          console.log(`Migrated image ${img.id} to object storage`);
+        } catch (e) {
+          console.error('Failed to migrate image to storage:', img.id, e);
+          // 迁移失败时返回原始 base64
+        }
+      }
+      // 如果是对象存储 key，生成签名 URL
+      else if (imageUrl && !imageUrl.startsWith('http')) {
         try {
           imageUrl = await getImageUrl(imageUrl);
         } catch (e) {
-          console.error('Failed to generate signed URL for:', imageUrl, e);
+          console.error('Failed to generate signed URL:', imageUrl, e);
         }
       }
       

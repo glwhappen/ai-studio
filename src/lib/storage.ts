@@ -16,13 +16,25 @@ export async function uploadBase64Image(
 ): Promise<string> {
   // 解析 base64 data URL
   // 格式: data:image/png;base64,xxxxx
-  const matches = base64Data.match(/^data:(image\/[^;]+);base64,(.+)$/);
-  if (!matches) {
-    throw new Error('Invalid base64 image format');
+  // 使用字符串分割而非正则，避免大字符串堆栈溢出
+  const prefixEnd = base64Data.indexOf(',');
+  if (prefixEnd === -1) {
+    throw new Error('Invalid base64 image format: no comma found');
   }
   
-  const mimeType = matches[1];
-  const base64 = matches[2];
+  const prefix = base64Data.substring(0, prefixEnd);
+  const base64 = base64Data.substring(prefixEnd + 1);
+  
+  // 解析 MIME 类型: data:image/png;base64
+  if (!prefix.startsWith('data:') || !prefix.includes(';base64')) {
+    throw new Error('Invalid base64 image format: wrong prefix');
+  }
+  
+  const mimeType = prefix.substring(5, prefix.indexOf(';'));
+  
+  if (!mimeType.startsWith('image/')) {
+    throw new Error('Invalid base64 image format: not an image');
+  }
   
   // 转换为 Buffer
   const buffer = Buffer.from(base64, 'base64');
