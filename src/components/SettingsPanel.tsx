@@ -20,10 +20,12 @@ import { PROVIDER_INFO } from '@/types';
 
 interface SettingsPanelProps {
   apiConfig: ApiConfig;
+  autoPublic: boolean;
   onUpdateProviderConfig: (provider: ApiProvider, config: Partial<ProviderConfig>) => void;
+  onUpdateAutoPublic: (autoPublic: boolean) => void;
 }
 
-export function SettingsPanel({ apiConfig, onUpdateProviderConfig }: SettingsPanelProps) {
+export function SettingsPanel({ apiConfig, autoPublic, onUpdateProviderConfig, onUpdateAutoPublic }: SettingsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   
   // 临时编辑状态
@@ -32,7 +34,6 @@ export function SettingsPanel({ apiConfig, onUpdateProviderConfig }: SettingsPan
 
   // 检查是否有已配置的供应商
   const hasAnyConfigured = Object.values(apiConfig.providers).some(p => p.enabled && p.baseUrl && p.apiKey);
-  const configuredCount = Object.values(apiConfig.providers).filter(p => p.enabled && p.baseUrl && p.apiKey).length;
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
@@ -132,23 +133,16 @@ export function SettingsPanel({ apiConfig, onUpdateProviderConfig }: SettingsPan
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9"
+          className="h-9 w-9"
         >
           <Settings className="h-4 w-4" />
-          {hasAnyConfigured ? (
-            <span className="absolute -right-0.5 -top-0.5 h-5 min-w-5 rounded-full bg-primary flex items-center justify-center text-[10px] text-primary-foreground font-medium px-1">
-              {configuredCount}
-            </span>
-          ) : (
-            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
-          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-serif">API 配置</DialogTitle>
+          <DialogTitle className="font-serif">设置</DialogTitle>
           <DialogDescription>
-            配置多个 API 供应商，支持 Gemini 和 OpenAI 兼容格式
+            配置 API 供应商和偏好设置
           </DialogDescription>
         </DialogHeader>
         
@@ -160,7 +154,8 @@ export function SettingsPanel({ apiConfig, onUpdateProviderConfig }: SettingsPan
         )}
 
         <Tabs defaultValue={apiConfig.currentProvider} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="preferences">偏好</TabsTrigger>
             <TabsTrigger value="gemini" className="flex items-center gap-1.5">
               <span>{PROVIDER_INFO.gemini.icon}</span>
               <span>Gemini</span>
@@ -176,6 +171,24 @@ export function SettingsPanel({ apiConfig, onUpdateProviderConfig }: SettingsPan
               )}
             </TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="preferences" className="pt-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="auto-public">自动公开作品</Label>
+                  <p className="text-xs text-muted-foreground">
+                    生成完成后自动将作品添加到公开作品集
+                  </p>
+                </div>
+                <Switch
+                  id="auto-public"
+                  checked={autoPublic}
+                  onCheckedChange={onUpdateAutoPublic}
+                />
+              </div>
+            </div>
+          </TabsContent>
           
           <TabsContent value="gemini">
             {renderProviderTab('gemini', geminiConfig, setGeminiConfig)}

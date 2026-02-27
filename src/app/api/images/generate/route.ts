@@ -15,6 +15,8 @@ interface GenerateRequest {
   // 参考图片（图生图）
   referenceImage?: string;
   referenceImageMime?: string;
+  // 是否公开
+  isPublic?: boolean;
 }
 
 // 创建图片记录并启动生成任务
@@ -24,7 +26,8 @@ export async function POST(request: NextRequest) {
     const { 
       userId, prompt, model, provider, baseUrl, apiKey, 
       aspectRatio, imageSize, size,
-      referenceImage, referenceImageMime
+      referenceImage, referenceImageMime,
+      isPublic
     } = body;
     
     if (!userId || !prompt || !model || !provider || !baseUrl || !apiKey) {
@@ -42,6 +45,7 @@ export async function POST(request: NextRequest) {
         model,
         provider,
         status: 'pending',
+        is_public: isPublic ?? true, // 默认公开
         config: {
           aspectRatio,
           imageSize,

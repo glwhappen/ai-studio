@@ -67,6 +67,7 @@ const defaultApiConfig: ApiConfigState = {
 
 export function useAppState() {
   const [apiConfig, setApiConfig] = useState<ApiConfigState>(defaultApiConfig);
+  const [autoPublic, setAutoPublic] = useState(true); // 默认自动公开
   const [userId, setUserId] = useState<string | null>(null);
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -95,6 +96,11 @@ export function useAppState() {
           openaiSize: parsed.apiConfig?.openaiSize || 'auto',
           useCustomSize: parsed.apiConfig?.useCustomSize || false,
         });
+        
+        // 读取自动公开设置
+        if (typeof parsed.autoPublic === 'boolean') {
+          setAutoPublic(parsed.autoPublic);
+        }
       }
     } catch (error) {
       console.error('Failed to load state:', error);
@@ -105,9 +111,9 @@ export function useAppState() {
   // 保存配置到 localStorage
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiConfig }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiConfig, autoPublic }));
     }
-  }, [apiConfig, isLoaded]);
+  }, [apiConfig, autoPublic, isLoaded]);
 
   // 初始化用户（通过 API）
   useEffect(() => {
@@ -235,6 +241,7 @@ export function useAppState() {
           size: apiConfig.useCustomSize && apiConfig.openaiSize !== 'auto' ? apiConfig.openaiSize : undefined,
           referenceImage: referenceImage?.base64,
           referenceImageMime: referenceImage?.mimeType,
+          isPublic: autoPublic, // 传递自动公开设置
         }),
       });
       
@@ -253,7 +260,12 @@ export function useAppState() {
       console.error('Failed to submit generation:', error);
       throw error;
     }
-  }, [userId, apiConfig, getCurrentProviderConfig, fetchImages]);
+  }, [userId, apiConfig, autoPublic, getCurrentProviderConfig, fetchImages]);
+
+  // 更新自动公开设置
+  const updateAutoPublic = useCallback((value: boolean) => {
+    setAutoPublic(value);
+  }, []);
 
   // 切换图片公开状态
   const toggleImagePublic = useCallback(async (imageId: string, isPublic: boolean) => {
@@ -295,11 +307,13 @@ export function useAppState() {
 
   return {
     apiConfig,
+    autoPublic,
     userId,
     images,
     isLoading,
     isLoaded,
     updateApiConfig,
+    updateAutoPublic,
     updateProviderConfig,
     switchProvider,
     getCurrentProviderConfig,

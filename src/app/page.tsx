@@ -23,11 +23,13 @@ export default function Home() {
   const searchParams = useSearchParams();
   const {
     apiConfig,
+    autoPublic,
     userId,
     images,
     isLoading,
     isLoaded,
     updateApiConfig,
+    updateAutoPublic,
     updateProviderConfig,
     switchProvider,
     getCurrentProviderConfig,
@@ -139,7 +141,9 @@ export default function Home() {
             </Link>
             <SettingsPanel
               apiConfig={apiConfig}
+              autoPublic={autoPublic}
               onUpdateProviderConfig={updateProviderConfig}
+              onUpdateAutoPublic={updateAutoPublic}
             />
           </div>
         </div>
