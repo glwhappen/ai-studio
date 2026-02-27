@@ -164,13 +164,13 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, showStatus
                 }}
               />
             ) : (
-              <div className="aspect-square flex flex-col items-center justify-center gap-2 bg-muted/50">
+              <div className="aspect-square max-h-48 flex flex-col items-center justify-center gap-2 bg-muted/50 p-3">
                 <StatusIcon status={image.status} />
                 <span className="text-xs text-muted-foreground">
                   {StatusText({ status: image.status })}
                 </span>
                 {image.status === 'failed' && image.error_message && (
-                  <span className="text-xs text-red-500 text-center px-4 line-clamp-2">
+                  <span className="text-xs text-red-500 text-center line-clamp-2" title={image.error_message}>
                     {image.error_message}
                   </span>
                 )}
