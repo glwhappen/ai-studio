@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
@@ -318,7 +319,7 @@ export default function GalleryPage() {
 
       {/* 图片预览弹窗 */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">作品详情</DialogTitle>
             <DialogDescription className="sr-only">
@@ -327,39 +328,35 @@ export default function GalleryPage() {
           </DialogHeader>
           {selectedImage && (
             <>
-              {/* 可滚动内容区 */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
-                {/* 图片 */}
-                <div className="relative bg-muted rounded-lg overflow-hidden">
-                  <img
-                    src={selectedImage.image_url}
-                    alt={selectedImage.prompt}
-                    className="w-full h-auto max-h-[50vh] object-contain"
-                  />
+              {/* 可缩放图片区域 */}
+              <div className="flex-1 min-h-0 bg-muted rounded-lg overflow-hidden" style={{ height: '50vh' }}>
+                <ZoomableImage
+                  src={selectedImage.image_url}
+                  alt={selectedImage.prompt}
+                />
+              </div>
+              
+              {/* 信息 */}
+              <div className="shrink-0 space-y-2 pt-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
+                  <p className="text-sm">{selectedImage.prompt}</p>
                 </div>
-                
-                {/* 信息 */}
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
-                    <p className="text-sm">{selectedImage.prompt}</p>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                    <span>模型: {selectedImage.model}</span>
-                    {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
-                    {hasReferenceImage(selectedImage) && (
-                      <span className="text-amber-600 flex items-center gap-1">
-                        <RefImageIcon className="h-3 w-3" />
-                        基于参考图生成
-                      </span>
-                    )}
-                    <span>{formatDate(selectedImage.created_at)}</span>
-                  </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                  <span>模型: {selectedImage.model}</span>
+                  {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
+                  {hasReferenceImage(selectedImage) && (
+                    <span className="text-amber-600 flex items-center gap-1">
+                      <RefImageIcon className="h-3 w-3" />
+                      基于参考图生成
+                    </span>
+                  )}
+                  <span>{formatDate(selectedImage.created_at)}</span>
                 </div>
               </div>
               
               {/* 操作按钮 - 固定在底部 */}
-              <div className="shrink-0 flex items-center gap-2 pt-4 border-t mt-4">
+              <div className="shrink-0 flex items-center gap-2 pt-3 border-t">
                 <Button variant="outline" size="sm" onClick={() => handleDownload(selectedImage)}>
                   <Download className="h-4 w-4 mr-1.5" />
                   下载
