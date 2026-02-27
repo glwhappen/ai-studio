@@ -3,20 +3,13 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ZoomableImage } from '@/components/ZoomableImage';
+import { ImageViewer } from '@/components/ImageViewer';
 import {
   Download,
   Trash2,
@@ -370,93 +363,93 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
         })}
       </div>
 
-      {/* 图片预览弹窗 */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="font-serif">图片预览</DialogTitle>
-            <DialogDescription className="sr-only">
-              图片详细信息和操作
-            </DialogDescription>
-          </DialogHeader>
-          {selectedImage && (
-            <>
-              {/* 可缩放图片区域 */}
-              <div className="flex-1 min-h-0 bg-muted rounded-lg overflow-hidden" style={{ height: '50vh' }}>
-                <ZoomableImage
-                  src={selectedImage.image_url!}
-                  alt={selectedImage.prompt}
-                />
-              </div>
-              
-              {/* 信息 */}
-              <div className="shrink-0 space-y-2 pt-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
-                  <p className="text-sm">{selectedImage.prompt}</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>模型: {selectedImage.model}</span>
-                  {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
-                  <span>{formatDate(selectedImage.created_at)}</span>
-                </div>
-              </div>
-              
-              {/* 操作按钮 - 固定在底部 */}
-              <div className="shrink-0 flex flex-wrap items-center gap-2 pt-3 border-t">
-                {onTogglePublic && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onTogglePublic(selectedImage.id, !selectedImage.is_public);
-                      setSelectedImage({ ...selectedImage, is_public: !selectedImage.is_public });
-                    }}
-                  >
-                    {selectedImage.is_public ? (
-                      <>
-                        <GlobeLock className="h-4 w-4 mr-1.5" />
-                        取消公开
-                      </>
-                    ) : (
-                      <>
-                        <Globe className="h-4 w-4 mr-1.5" />
-                        公开到作品集
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={() => handleDownload(selectedImage)}>
-                  <Download className="h-4 w-4 mr-1.5" />
-                  下载
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+      {/* 全屏图片查看器 */}
+      <ImageViewer
+        src={selectedImage?.image_url || ''}
+        alt={selectedImage?.prompt || ''}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+      />
+
+      {/* 底部操作栏 */}
+      {selectedImage && isPreviewOpen && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-t border-white/10">
+          <div className="container mx-auto px-4 py-3">
+            {/* 图片信息 */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <p className="text-white/90 text-sm line-clamp-2 flex-1">{selectedImage.prompt}</p>
+              <button
+                className="text-white/60 hover:text-white shrink-0"
+                onClick={() => setIsPreviewOpen(false)}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {onTogglePublic && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
                   onClick={() => {
-                    handleCopyPrompt(selectedImage.prompt);
+                    onTogglePublic(selectedImage.id, !selectedImage.is_public);
+                    setSelectedImage({ ...selectedImage, is_public: !selectedImage.is_public });
                   }}
                 >
-                  <Copy className="h-4 w-4 mr-1.5" />
-                  复制提示词
+                  {selectedImage.is_public ? (
+                    <>
+                      <GlobeLock className="h-4 w-4 mr-1.5" />
+                      取消公开
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="h-4 w-4 mr-1.5" />
+                      公开
+                    </>
+                  )}
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="ml-auto"
-                  onClick={() => {
-                    onDeleteImage(selectedImage.id);
-                    setIsPreviewOpen(false);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" />
-                  删除
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+              )}
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                onClick={() => handleDownload(selectedImage)}
+              >
+                <Download className="h-4 w-4 mr-1.5" />
+                下载
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                onClick={() => handleCopyPrompt(selectedImage.prompt)}
+              >
+                <Copy className="h-4 w-4 mr-1.5" />
+                复制
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  onDeleteImage(selectedImage.id);
+                  setIsPreviewOpen(false);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                删除
+              </Button>
+              <span className="text-white/40 text-xs whitespace-nowrap ml-auto">
+                {selectedImage.model} · {formatDate(selectedImage.created_at)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

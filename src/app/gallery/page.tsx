@@ -3,14 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ZoomableImage } from '@/components/ZoomableImage';
+import { ImageViewer } from '@/components/ImageViewer';
 import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
@@ -317,78 +310,73 @@ export default function GalleryPage() {
         </Card>
       </main>
 
-      {/* 图片预览弹窗 */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="font-serif">作品详情</DialogTitle>
-            <DialogDescription className="sr-only">
-              作品详细信息和操作
-            </DialogDescription>
-          </DialogHeader>
-          {selectedImage && (
-            <>
-              {/* 可缩放图片区域 */}
-              <div className="flex-1 min-h-0 bg-muted rounded-lg overflow-hidden" style={{ height: '50vh' }}>
-                <ZoomableImage
-                  src={selectedImage.image_url}
-                  alt={selectedImage.prompt}
-                />
-              </div>
-              
-              {/* 信息 */}
-              <div className="shrink-0 space-y-2 pt-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
-                  <p className="text-sm">{selectedImage.prompt}</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                  <span>模型: {selectedImage.model}</span>
-                  {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
-                  {hasReferenceImage(selectedImage) && (
-                    <span className="text-amber-600 flex items-center gap-1">
-                      <RefImageIcon className="h-3 w-3" />
-                      基于参考图生成
-                    </span>
-                  )}
-                  <span>{formatDate(selectedImage.created_at)}</span>
-                </div>
-              </div>
-              
-              {/* 操作按钮 - 固定在底部 */}
-              <div className="shrink-0 flex items-center gap-2 pt-3 border-t">
-                <Button variant="outline" size="sm" onClick={() => handleDownload(selectedImage)}>
-                  <Download className="h-4 w-4 mr-1.5" />
-                  下载
+      {/* 全屏图片查看器 */}
+      <ImageViewer
+        src={selectedImage?.image_url || ''}
+        alt={selectedImage?.prompt || ''}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+      />
+
+      {/* 底部操作栏 - 仅在选择图片时显示 */}
+      {selectedImage && isPreviewOpen && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-t border-white/10">
+          <div className="container mx-auto px-4 py-3">
+            {/* 图片信息 */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <p className="text-white/90 text-sm line-clamp-2 flex-1">{selectedImage.prompt}</p>
+              <button
+                className="text-white/60 hover:text-white shrink-0"
+                onClick={() => setIsPreviewOpen(false)}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                onClick={() => handleDownload(selectedImage)}
+              >
+                <Download className="h-4 w-4 mr-1.5" />
+                下载
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                onClick={() => handleCopyPrompt(selectedImage)}
+              >
+                {copiedId === selectedImage.id ? (
+                  <>
+                    <Check className="h-4 w-4 mr-1.5 text-green-400" />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-1.5" />
+                    复制提示词
+                  </>
+                )}
+              </Button>
+              <Link href={buildCreateUrl(selectedImage)} onClick={() => setIsPreviewOpen(false)}>
+                <Button size="sm" className="shrink-0">
+                  <Sparkles className="h-4 w-4 mr-1.5" />
+                  用此提示词创作
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handleCopyPrompt(selectedImage)}
-                >
-                  {copiedId === selectedImage.id ? (
-                    <>
-                      <Check className="h-4 w-4 mr-1.5 text-green-500" />
-                      已复制
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-1.5" />
-                      复制提示词
-                    </>
-                  )}
-                </Button>
-                <Link href={buildCreateUrl(selectedImage)}>
-                  <Button size="sm">
-                    <Sparkles className="h-4 w-4 mr-1.5" />
-                    用此提示词创作
-                  </Button>
-                </Link>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+              </Link>
+              <span className="text-white/40 text-xs whitespace-nowrap ml-auto">
+                {selectedImage.model} · {formatDate(selectedImage.created_at)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
