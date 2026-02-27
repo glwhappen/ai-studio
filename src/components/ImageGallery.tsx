@@ -31,6 +31,7 @@ import {
   Bot,
   Copy,
   Pencil,
+  RefreshCw,
 } from 'lucide-react';
 import type { ImageRecord, ImageStatus } from '@/hooks/useAppState';
 
@@ -77,6 +78,7 @@ function StatusText({ status }: { status: ImageStatus }) {
 export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, showStatus = false }: ImageGalleryProps) {
   const [selectedImage, setSelectedImage] = useState<ImageRecord | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   const handleDownload = async (image: ImageRecord) => {
     if (!image.image_url) return;
@@ -104,6 +106,20 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
     } catch (error) {
       console.error('Copy failed:', error);
     }
+  };
+  
+  // 图片加载错误处理
+  const handleImageError = (imageId: string) => {
+    setFailedImages(prev => new Set(prev).add(imageId));
+  };
+  
+  // 重试加载图片
+  const handleRetryImage = (imageId: string) => {
+    setFailedImages(prev => {
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -149,93 +165,115 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
     <>
       {/* 瀑布流图片展示 */}
       <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
-        {displayImages.map((image) => (
-          <div
-            key={image.id}
-            className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid"
-          >
-            {/* 图片或状态占位 */}
-            {image.status === 'completed' && image.image_url ? (
-              <img
-                src={image.image_url}
-                alt={image.prompt}
-                className="w-full h-auto cursor-pointer transition-transform group-hover:scale-[1.02]"
-                onClick={() => {
-                  setSelectedImage(image);
-                  setIsPreviewOpen(true);
-                }}
-              />
-            ) : (
-              <div className="aspect-square max-h-48 flex flex-col items-center justify-center gap-2 bg-muted/50 p-3">
-                <StatusIcon status={image.status} />
-                <span className="text-xs text-muted-foreground">
-                  {StatusText({ status: image.status })}
-                </span>
-                {image.status === 'failed' && image.error_message && (
-                  <span className="text-xs text-red-500 text-center line-clamp-2" title={image.error_message}>
-                    {image.error_message}
+        {displayImages.map((image) => {
+          const hasError = failedImages.has(image.id);
+          
+          return (
+            <div
+              key={image.id}
+              className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid"
+            >
+              {/* 图片或状态占位 */}
+              {image.status === 'completed' && image.image_url ? (
+                hasError ? (
+                  // 加载失败显示
+                  <div className="aspect-square flex flex-col items-center justify-center gap-2 p-4 bg-muted/50">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground text-center">图片加载失败</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1"
+                      onClick={() => handleRetryImage(image.id)}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      重试
+                    </Button>
+                  </div>
+                ) : (
+                  <img
+                    src={image.image_url}
+                    alt={image.prompt}
+                    className="w-full h-auto cursor-pointer transition-transform group-hover:scale-[1.02]"
+                    onClick={() => {
+                      setSelectedImage(image);
+                      setIsPreviewOpen(true);
+                    }}
+                    onError={() => handleImageError(image.id)}
+                    loading="lazy"
+                  />
+                )
+              ) : (
+                <div className="aspect-square max-h-48 flex flex-col items-center justify-center gap-2 bg-muted/50 p-3">
+                  <StatusIcon status={image.status} />
+                  <span className="text-xs text-muted-foreground">
+                    {StatusText({ status: image.status })}
                   </span>
-                )}
-              </div>
-            )}
-            
-            {/* 悬停信息层 - 仅完成的图片 */}
-            {image.status === 'completed' && image.image_url && (
-              <div 
-                className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                onClick={() => {
-                  setSelectedImage(image);
-                  setIsPreviewOpen(true);
-                }}
-              >
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
-                    <div className="flex items-center gap-1">
-                      {getSizeText(image) && (
-                        <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                          {getSizeText(image)}
-                        </span>
-                      )}
+                  {image.status === 'failed' && image.error_message && (
+                    <span className="text-xs text-red-500 text-center line-clamp-2" title={image.error_message}>
+                      {image.error_message}
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {/* 悬停信息层 - 仅完成的图片且未加载失败 */}
+              {image.status === 'completed' && image.image_url && !hasError && (
+                <div 
+                  className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  onClick={() => {
+                    setSelectedImage(image);
+                    setIsPreviewOpen(true);
+                  }}
+                >
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                      <div className="flex items-center gap-1">
+                        {getSizeText(image) && (
+                          <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                            {getSizeText(image)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {/* 状态标识 */}
-            {showStatus && image.status !== 'completed' && (
-              <div className="absolute top-2 left-2 bg-background/80 rounded-full px-2 py-1 flex items-center gap-1">
-                <StatusIcon status={image.status} />
-                <span className="text-xs">{StatusText({ status: image.status })}</span>
-              </div>
-            )}
-            
-            {/* 提供商标识 */}
-            {image.status === 'completed' && image.image_url && (
-              <div className="absolute top-2 left-2">
-                {image.provider === 'gemini' ? (
-                  <div className="bg-primary/80 rounded-full p-1">
-                    <Sparkles className="h-3 w-3 text-white" />
-                  </div>
-                ) : (
-                  <div className="bg-blue-500/80 rounded-full p-1">
-                    <Bot className="h-3 w-3 text-white" />
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+              
+              {/* 状态标识 */}
+              {showStatus && image.status !== 'completed' && (
+                <div className="absolute top-2 left-2 bg-background/80 rounded-full px-2 py-1 flex items-center gap-1">
+                  <StatusIcon status={image.status} />
+                  <span className="text-xs">{StatusText({ status: image.status })}</span>
+                </div>
+              )}
+              
+              {/* 提供商标识 */}
+              {image.status === 'completed' && image.image_url && !hasError && (
+                <div className="absolute top-2 left-2">
+                  {image.provider === 'gemini' ? (
+                    <div className="bg-primary/80 rounded-full p-1">
+                      <Sparkles className="h-3 w-3 text-white" />
+                    </div>
+                  ) : (
+                    <div className="bg-blue-500/80 rounded-full p-1">
+                      <Bot className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              )}
             
             {/* 公开状态标识 */}
-            {image.is_public && (
+            {image.is_public && !hasError && (
               <div className="absolute top-2 right-10 bg-green-500/80 rounded-full p-1" title="已公开">
                 <Globe className="h-3 w-3 text-white" />
               </div>
             )}
             
             {/* 操作按钮 */}
-            {image.status === 'completed' && image.image_url && (
+            {image.status === 'completed' && image.image_url && !hasError && (
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -324,7 +362,8 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 图片预览弹窗 */}

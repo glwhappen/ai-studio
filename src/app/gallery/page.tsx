@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
 interface PublicImage {
@@ -22,6 +22,9 @@ interface PublicImage {
   created_at: string;
   config: Record<string, unknown> | null;
 }
+
+// 图片加载状态追踪
+const imageLoadStates = new Map<string, 'loading' | 'loaded' | 'error'>();
 
 // 获取尺寸显示文本
 function getSizeText(image: PublicImage): string | null {
@@ -64,6 +67,7 @@ export default function GalleryPage() {
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   
   // 分页
   const [page, setPage] = useState(1);
@@ -78,6 +82,8 @@ export default function GalleryPage() {
       if (data.success) {
         setImages(data.images);
         setTotalPages(data.pagination.totalPages);
+        // 清除失败记录
+        setFailedImages(new Set());
       }
     } catch (error) {
       console.error('Failed to fetch gallery:', error);
@@ -89,6 +95,29 @@ export default function GalleryPage() {
   useEffect(() => {
     fetchGallery(page);
   }, [page, fetchGallery]);
+  
+  // 图片加载错误处理
+  const handleImageError = (imageId: string) => {
+    setFailedImages(prev => new Set(prev).add(imageId));
+  };
+  
+  // 重试加载图片
+  const handleRetryImage = (imageId: string) => {
+    setFailedImages(prev => {
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
+    });
+    // 强制刷新图片（添加时间戳）
+    setImages(prev => prev.map(img => 
+      img.id === imageId 
+        ? { ...img, image_url: img.image_url.includes('?') 
+            ? img.image_url.split('?')[0] + '?t=' + Date.now()
+            : img.image_url + '?t=' + Date.now() 
+          }
+        : img
+    ));
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('zh-CN', {
@@ -171,54 +200,86 @@ export default function GalleryPage() {
               <>
                 {/* 瀑布流图片展示 */}
                 <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
-                  {images.map((image) => (
-                    <div
-                      key={image.id}
-                      className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid cursor-pointer"
-                      onClick={() => {
-                        setSelectedImage(image);
-                        setIsPreviewOpen(true);
-                      }}
-                    >
-                      <img
-                        src={image.image_url}
-                        alt={image.prompt}
-                        className="w-full h-auto transition-transform group-hover:scale-[1.02]"
-                      />
-                      {/* 悬停信息层 */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
-                            {getSizeText(image) && (
-                              <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                                {getSizeText(image)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {/* 提供商标识 */}
-                      <div className="absolute top-2 left-2 flex items-center gap-1">
-                        {image.provider === 'gemini' ? (
-                          <div className="bg-primary/80 rounded-full p-1">
-                            <Sparkles className="h-3 w-3 text-white" />
+                  {images.map((image) => {
+                    const hasError = failedImages.has(image.id);
+                    
+                    return (
+                      <div
+                        key={image.id}
+                        className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid cursor-pointer"
+                        onClick={() => {
+                          if (!hasError) {
+                            setSelectedImage(image);
+                            setIsPreviewOpen(true);
+                          }
+                        }}
+                      >
+                        {hasError ? (
+                          // 加载失败显示
+                          <div className="aspect-square flex flex-col items-center justify-center gap-2 p-4 bg-muted/50">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground text-center">图片加载失败</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRetryImage(image.id);
+                              }}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              重试
+                            </Button>
                           </div>
                         ) : (
-                          <div className="bg-blue-500/80 rounded-full p-1">
-                            <Bot className="h-3 w-3 text-white" />
+                          <img
+                            src={image.image_url}
+                            alt={image.prompt}
+                            className="w-full h-auto transition-transform group-hover:scale-[1.02]"
+                            onError={() => handleImageError(image.id)}
+                            loading="lazy"
+                          />
+                        )}
+                        {/* 悬停信息层 - 仅图片加载成功时显示 */}
+                        {!hasError && (
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute bottom-0 left-0 right-0 p-3">
+                              <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                                {getSizeText(image) && (
+                                  <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
+                                    {getSizeText(image)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
-                        {/* 参考图标识 */}
-                        {hasReferenceImage(image) && (
-                          <div className="bg-amber-500/80 rounded-full p-1" title="基于参考图生成">
-                            <RefImageIcon className="h-3 w-3 text-white" />
+                        {/* 提供商标识 - 仅图片加载成功时显示 */}
+                        {!hasError && (
+                          <div className="absolute top-2 left-2 flex items-center gap-1">
+                            {image.provider === 'gemini' ? (
+                              <div className="bg-primary/80 rounded-full p-1">
+                                <Sparkles className="h-3 w-3 text-white" />
+                              </div>
+                            ) : (
+                              <div className="bg-blue-500/80 rounded-full p-1">
+                                <Bot className="h-3 w-3 text-white" />
+                              </div>
+                            )}
+                            {/* 参考图标识 */}
+                            {hasReferenceImage(image) && (
+                              <div className="bg-amber-500/80 rounded-full p-1" title="基于参考图生成">
+                                <RefImageIcon className="h-3 w-3 text-white" />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* 分页 */}
