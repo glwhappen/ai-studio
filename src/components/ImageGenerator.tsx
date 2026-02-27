@@ -17,41 +17,52 @@ import { Sparkles, Loader2, AlertCircle, ImagePlus, X, ImageIcon } from 'lucide-
 import { ModelSelector } from '@/components/ModelSelector';
 import { SizeSelector } from '@/components/SizeSelector';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ApiConfig, EditImageState } from '@/types';
+import type { ApiConfig, EditImageState, ApiProvider, getProviderFromModel } from '@/types';
+import { getProviderFromModel as getProvider } from '@/types';
 
 interface ImageGeneratorProps {
   apiConfig: ApiConfig;
   projectId: string;
+  provider: ApiProvider;
   editState: EditImageState | null;
-  onGenerate: (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
+  onGenerate: (params: {
+    prompt: string;
+    imageUrl: string;
+    model: string;
+    provider: ApiProvider;
+    aspectRatio?: string;
+    imageSize?: string;
+    size?: string;
+    useCustomSize: boolean;
+  }) => void;
   onOpenSettings: () => void;
-  onModelChange: (model: string) => void;
-  onSizeChange: (aspectRatio: string, imageSize: string, useCustomSize: boolean) => void;
+  onModelChange: (model: string, provider: ApiProvider) => void;
+  onSizeChange: (params: {
+    aspectRatio?: string;
+    imageSize?: string;
+    openaiSize?: string;
+    useCustomSize?: boolean;
+  }) => void;
   onClearEditState: () => void;
 }
 
-interface GeminiResponse {
-  candidates?: Array<{
-    finishReason?: string;
-    content?: {
-      parts?: Array<{
-        inlineData?: {
-          mimeType: string;
-          data: string;
-        };
-        text?: string;
-      }>;
-    };
-  }>;
-  error?: {
-    message: string;
-    code?: number;
+interface GenerateResponse {
+  success?: boolean;
+  image?: {
+    data: string;
+    mimeType: string;
   };
+  error?: string;
+  provider?: ApiProvider;
+  aspectRatio?: string;
+  imageSize?: string;
+  size?: string;
 }
 
 export function ImageGenerator({
   apiConfig,
   projectId,
+  provider,
   editState,
   onGenerate,
   onOpenSettings,
@@ -81,11 +92,22 @@ export function ImageGenerator({
       
       // 更新模型
       if (editState.model) {
-        onModelChange(editState.model);
+        onModelChange(editState.model, editState.provider);
       }
       
       // 更新尺寸设置
-      onSizeChange(editState.aspectRatio, editState.imageSize, editState.useCustomSize);
+      if (editState.provider === 'gemini') {
+        onSizeChange({
+          aspectRatio: editState.aspectRatio,
+          imageSize: editState.imageSize,
+          useCustomSize: editState.useCustomSize,
+        });
+      } else {
+        onSizeChange({
+          openaiSize: editState.size,
+          useCustomSize: editState.useCustomSize,
+        });
+      }
       
       // 如果有参考图 URL，加载它
       if (editState.referenceImageUrl) {
@@ -180,52 +202,35 @@ export function ImageGenerator({
     setError(null);
 
     try {
-      const baseUrl = apiConfig.baseUrl.replace(/\/+$/, '');
-      const modelName = apiConfig.selectedModel.replace(/^models\//, '');
-      const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${apiConfig.apiKey}`;
-
-      // 构建 parts 数组
-      const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
-      
-      // 如果有参考图片，先添加图片
-      if (referenceImage && referenceImageMime) {
-        parts.push({
-          inlineData: {
-            mimeType: referenceImageMime,
-            data: referenceImage,
-          },
-        });
-      }
-      
-      // 添加文本提示词
-      parts.push({
-        text: prompt.trim(),
-      });
-
-      // 构建请求体
       const requestBody: Record<string, unknown> = {
-        contents: [
-          {
-            role: 'user',
-            parts,
-          },
-        ],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
+        prompt: prompt.trim(),
+        model: apiConfig.selectedModel,
+        provider,
+        baseUrl: apiConfig.baseUrl,
+        apiKey: apiConfig.apiKey,
       };
 
-      // 如果启用了自定义尺寸，添加 imageConfig
-      if (apiConfig.useCustomSize && apiConfig.aspectRatio) {
-        (requestBody.generationConfig as Record<string, unknown>).imageConfig = {
-          aspectRatio: apiConfig.aspectRatio,
-          imageSize: apiConfig.imageSize || '1K',
-        };
+      // 根据提供商添加不同的参数
+      if (provider === 'gemini') {
+        if (apiConfig.useCustomSize) {
+          requestBody.aspectRatio = apiConfig.aspectRatio;
+          requestBody.imageSize = apiConfig.imageSize;
+        }
+      } else {
+        if (apiConfig.useCustomSize && apiConfig.openaiSize !== 'auto') {
+          requestBody.size = apiConfig.openaiSize;
+        }
+      }
+
+      // 添加参考图片
+      if (referenceImage && referenceImageMime) {
+        requestBody.referenceImage = referenceImage;
+        requestBody.referenceImageMime = referenceImageMime;
       }
 
       console.log('Request:', JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch(url, {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,57 +238,33 @@ export function ImageGenerator({
         body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
-      }
-
-      const data: GeminiResponse = await response.json();
+      const data: GenerateResponse = await response.json();
 
       console.log('Response:', JSON.stringify(data, null, 2));
 
-      if (data.error) {
-        throw new Error(`API 错误: ${data.error.message}`);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '生成失败');
       }
 
-      const imageData = data.candidates?.[0]?.content?.parts?.find(
-        (part) => part.inlineData
-      );
-
-      if (imageData?.inlineData) {
-        const imageUrl = `data:${imageData.inlineData.mimeType};base64,${imageData.inlineData.data}`;
-        onGenerate(
-          prompt.trim(),
+      if (data.image) {
+        const imageUrl = `data:${data.image.mimeType};base64,${data.image.data}`;
+        onGenerate({
+          prompt: prompt.trim(),
           imageUrl,
-          apiConfig.selectedModel,
-          apiConfig.aspectRatio,
-          apiConfig.imageSize,
-          apiConfig.useCustomSize
-        );
+          model: apiConfig.selectedModel,
+          provider: data.provider || provider,
+          aspectRatio: data.aspectRatio,
+          imageSize: data.imageSize,
+          size: data.size,
+          useCustomSize: apiConfig.useCustomSize,
+        });
         setPrompt('');
         // 清除参考图片
         setReferenceImage(null);
         setReferenceImageMime(null);
         setUseReferenceImage(false);
       } else {
-        // 检查是否有文本返回
-        const textData = data.candidates?.[0]?.content?.parts?.find(
-          (part) => part.text
-        );
-        
-        let errorMsg = '未生成图片';
-        
-        if (textData?.text) {
-          errorMsg += `，模型返回: "${textData.text.slice(0, 200)}${textData.text.length > 200 ? '...' : ''}"`;
-        }
-        
-        // 检查 finishReason
-        const finishReason = data.candidates?.[0]?.finishReason;
-        if (finishReason && finishReason !== 'STOP') {
-          errorMsg += `\n结束原因: ${finishReason}`;
-        }
-        
-        throw new Error(errorMsg);
+        throw new Error('未生成图片，请重试');
       }
     } catch (err) {
       console.error('Generation error:', err);
@@ -309,8 +290,10 @@ export function ImageGenerator({
 
         {/* 尺寸选择 */}
         <SizeSelector
+          provider={provider}
           aspectRatio={apiConfig.aspectRatio}
           imageSize={apiConfig.imageSize}
+          openaiSize={apiConfig.openaiSize}
           useCustomSize={apiConfig.useCustomSize}
           apiKey={apiConfig.apiKey}
           onSizeChange={onSizeChange}
@@ -453,7 +436,7 @@ export function ImageGenerator({
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">需要配置 API</AlertDialogTitle>
             <AlertDialogDescription>
-              请先在设置中配置你的 Gemini API 参数才能生成图片
+              请先在设置中配置你的 API 参数才能生成图片
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

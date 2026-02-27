@@ -24,8 +24,10 @@ import {
   Image as ImageIcon,
   Edit3,
   Copy,
+  Sparkles,
+  Bot,
 } from 'lucide-react';
-import type { GeneratedImage, EditImageState } from '@/types';
+import type { GeneratedImage, EditImageState, ApiProvider } from '@/types';
 
 interface ImageGalleryProps {
   images: GeneratedImage[];
@@ -45,7 +47,7 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `gemini-${image.id.slice(0, 8)}.png`;
+      link.download = `ai-${image.id.slice(0, 8)}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -60,8 +62,10 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
     onEditImage({
       prompt: image.prompt,
       model: image.model,
+      provider: image.provider,
       aspectRatio: image.aspectRatio,
       imageSize: image.imageSize,
+      size: image.size,
       useCustomSize: image.useCustomSize,
       referenceImageUrl: image.url,
     });
@@ -73,8 +77,10 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
     onReuseSettings({
       prompt: image.prompt,
       model: image.model,
+      provider: image.provider,
       aspectRatio: image.aspectRatio,
       imageSize: image.imageSize,
+      size: image.size,
       useCustomSize: image.useCustomSize,
       referenceImageUrl: '',
     });
@@ -88,6 +94,17 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // 获取尺寸显示文本
+  const getSizeText = (image: GeneratedImage): string | null => {
+    if (image.provider === 'gemini' && image.aspectRatio && image.imageSize) {
+      return `${image.aspectRatio} · ${image.imageSize}`;
+    }
+    if (image.provider === 'openai' && image.size) {
+      return image.size;
+    }
+    return null;
   };
 
   if (images.length === 0) {
@@ -129,14 +146,26 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-white/70">{formatDate(image.createdAt)}</p>
                   <div className="flex items-center gap-1">
-                    {image.aspectRatio && image.imageSize && (
+                    {getSizeText(image) && (
                       <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
-                        {image.aspectRatio} · {image.imageSize}
+                        {getSizeText(image)}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
+            </div>
+            {/* 提供商标识 */}
+            <div className="absolute top-2 left-2">
+              {image.provider === 'gemini' ? (
+                <div className="bg-primary/80 rounded-full p-1">
+                  <Sparkles className="h-3 w-3 text-white" />
+                </div>
+              ) : (
+                <div className="bg-blue-500/80 rounded-full p-1">
+                  <Bot className="h-3 w-3 text-white" />
+                </div>
+              )}
             </div>
             {/* 操作按钮 */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -189,13 +218,18 @@ export function ImageGallery({ images, onDeleteImage, onEditImage, onReuseSettin
             </DialogDescription>
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               {selectedImage?.model && (
-                <span className="bg-muted px-2 py-0.5 rounded">
+                <span className="bg-muted px-2 py-0.5 rounded flex items-center gap-1">
+                  {selectedImage.provider === 'gemini' ? (
+                    <Sparkles className="h-3 w-3" />
+                  ) : (
+                    <Bot className="h-3 w-3" />
+                  )}
                   模型: {selectedImage.model.split('/').pop()}
                 </span>
               )}
-              {selectedImage?.aspectRatio && selectedImage?.imageSize && (
+              {getSizeText(selectedImage!) && (
                 <span className="bg-muted px-2 py-0.5 rounded">
-                  尺寸: {selectedImage.aspectRatio} · {selectedImage.imageSize}
+                  尺寸: {getSizeText(selectedImage!)}
                 </span>
               )}
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ProjectList } from '@/components/ProjectList';
@@ -11,7 +11,8 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Menu, Sparkles, Image as ImageIcon } from 'lucide-react';
-import type { EditImageState } from '@/types';
+import type { EditImageState, ApiProvider } from '@/types';
+import { getProviderFromModel } from '@/types';
 
 export default function Home() {
   const {
@@ -34,26 +35,47 @@ export default function Home() {
   const currentProject = getCurrentProject();
   const projectImages = currentProject ? getProjectImages(currentProject.id) : [];
 
-  const handleGenerate = (prompt: string, imageUrl: string, model: string, aspectRatio: string, imageSize: string, useCustomSize: boolean) => {
+  // 根据当前模型确定提供商
+  const currentProvider = useMemo<ApiProvider>(() => {
+    return getProviderFromModel(state.apiConfig.selectedModel);
+  }, [state.apiConfig.selectedModel]);
+
+  const handleGenerate = (params: {
+    prompt: string;
+    imageUrl: string;
+    model: string;
+    provider: ApiProvider;
+    aspectRatio?: string;
+    imageSize?: string;
+    size?: string;
+    useCustomSize: boolean;
+  }) => {
     if (currentProject) {
       addImage({
-        url: imageUrl,
-        prompt,
-        model,
-        aspectRatio,
-        imageSize,
-        useCustomSize,
+        url: params.imageUrl,
+        prompt: params.prompt,
+        model: params.model,
+        provider: params.provider,
+        aspectRatio: params.aspectRatio,
+        imageSize: params.imageSize,
+        size: params.size,
+        useCustomSize: params.useCustomSize,
         projectId: currentProject.id,
       });
     }
   };
 
-  const handleModelChange = (model: string) => {
+  const handleModelChange = (model: string, provider: ApiProvider) => {
     updateApiConfig({ selectedModel: model });
   };
 
-  const handleSizeChange = (aspectRatio: string, imageSize: string, useCustomSize: boolean) => {
-    updateApiConfig({ aspectRatio, imageSize, useCustomSize });
+  const handleSizeChange = (params: {
+    aspectRatio?: string;
+    imageSize?: string;
+    openaiSize?: string;
+    useCustomSize?: boolean;
+  }) => {
+    updateApiConfig(params);
   };
 
   // 继续编辑：将图片作为参考图
@@ -87,7 +109,7 @@ export default function Home() {
       <aside className="hidden md:flex w-72 flex-col border-r bg-card">
         <div className="flex items-center justify-between border-b px-4 h-14">
           <h1 className="font-serif text-xl font-bold tracking-tight">
-            Gemini 创作室
+            AI 创作室
           </h1>
           <SettingsPanel
             apiConfig={state.apiConfig}
@@ -119,7 +141,7 @@ export default function Home() {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0">
               <div className="flex items-center justify-between border-b px-4 h-14">
-                <h1 className="font-serif text-lg font-bold">Gemini 创作室</h1>
+                <h1 className="font-serif text-lg font-bold">AI 创作室</h1>
                 <SettingsPanel
                   apiConfig={state.apiConfig}
                   onUpdateConfig={updateApiConfig}
@@ -144,7 +166,7 @@ export default function Home() {
               </div>
             </SheetContent>
           </Sheet>
-          <h1 className="font-serif text-lg font-bold">Gemini 创作室</h1>
+          <h1 className="font-serif text-lg font-bold">AI 创作室</h1>
           <SettingsPanel
             apiConfig={state.apiConfig}
             onUpdateConfig={updateApiConfig}
@@ -159,10 +181,10 @@ export default function Home() {
                 <ImageIcon className="h-12 w-12 text-primary" />
               </div>
               <h2 className="text-2xl font-serif font-semibold mb-2">
-                欢迎使用 Gemini 创作室
+                欢迎使用 AI 创作室
               </h2>
               <p className="text-muted-foreground max-w-md mb-6">
-                选择一个项目开始创作，或创建新项目来管理你的 AI 图片作品
+                支持 Gemini、GPT Image 等多种绘图模型，选择项目开始你的 AI 艺术之旅
               </p>
               <div className="flex flex-col gap-3 w-full max-w-xs">
                 {state.projects.length > 0 ? (
@@ -174,8 +196,7 @@ export default function Home() {
                     size="lg"
                     className="gap-2"
                     onClick={() => {
-                      // 触发创建项目的逻辑
-                      const project = createProject(
+                      createProject(
                         '我的第一个项目',
                         '开始你的 AI 创作之旅'
                       );
@@ -217,6 +238,7 @@ export default function Home() {
                     <ImageGenerator
                       apiConfig={state.apiConfig}
                       projectId={currentProject.id}
+                      provider={currentProvider}
                       editState={editState}
                       onGenerate={handleGenerate}
                       onOpenSettings={() => setSettingsOpen(true)}

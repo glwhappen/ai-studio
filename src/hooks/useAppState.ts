@@ -16,6 +16,7 @@ const defaultState: AppState = {
     selectedModel: '',
     aspectRatio: '1:1',
     imageSize: '1K',
+    openaiSize: 'auto',
     useCustomSize: false,
   },
   projects: [],
@@ -35,12 +36,13 @@ export function useAppState() {
         const parsed = JSON.parse(stored);
         // 深度合并 apiConfig，如果存储的值为空则使用默认值
         const storedApiConfig = parsed.apiConfig || {};
-        const mergedApiConfig = {
+        const mergedApiConfig: ApiConfig = {
           baseUrl: storedApiConfig.baseUrl || DEFAULT_BASE_URL,
           apiKey: storedApiConfig.apiKey || DEFAULT_API_KEY,
           selectedModel: storedApiConfig.selectedModel || '',
           aspectRatio: storedApiConfig.aspectRatio || '1:1',
           imageSize: storedApiConfig.imageSize || '1K',
+          openaiSize: storedApiConfig.openaiSize || 'auto',
           useCustomSize: storedApiConfig.useCustomSize || false,
         };
         setState({
