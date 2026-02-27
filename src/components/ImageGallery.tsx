@@ -329,39 +329,42 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
 
       {/* 图片预览弹窗 */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">图片预览</DialogTitle>
             <DialogDescription className="sr-only">
               图片详细信息和操作
             </DialogDescription>
           </DialogHeader>
           {selectedImage && (
-            <div className="space-y-4">
-              {/* 图片 */}
-              <div className="relative bg-muted rounded-lg overflow-hidden">
-                <img
-                  src={selectedImage.image_url!}
-                  alt={selectedImage.prompt}
-                  className="w-full h-auto max-h-[60vh] object-contain"
-                />
+            <>
+              {/* 可滚动内容区 */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+                {/* 图片 */}
+                <div className="relative bg-muted rounded-lg overflow-hidden">
+                  <img
+                    src={selectedImage.image_url!}
+                    alt={selectedImage.prompt}
+                    className="w-full h-auto max-h-[50vh] object-contain"
+                  />
+                </div>
+                
+                {/* 信息 */}
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
+                    <p className="text-sm">{selectedImage.prompt}</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>模型: {selectedImage.model}</span>
+                    {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
+                    <span>{formatDate(selectedImage.created_at)}</span>
+                  </div>
+                </div>
               </div>
               
-              {/* 信息 */}
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
-                  <p className="text-sm">{selectedImage.prompt}</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>模型: {selectedImage.model}</span>
-                  {getSizeText(selectedImage) && <span>尺寸: {getSizeText(selectedImage)}</span>}
-                  <span>{formatDate(selectedImage.created_at)}</span>
-                </div>
-              </div>
-              
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2 pt-2">
+              {/* 操作按钮 - 固定在底部 */}
+              <div className="shrink-0 flex flex-wrap items-center gap-2 pt-4 border-t mt-4">
                 {onTogglePublic && (
                   <Button
                     variant="outline"
@@ -411,7 +414,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                   删除
                 </Button>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

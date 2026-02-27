@@ -204,38 +204,41 @@ export default function GalleryPage() {
 
       {/* 图片预览弹窗 */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">作品详情</DialogTitle>
             <DialogDescription className="sr-only">
               作品详细信息和操作
             </DialogDescription>
           </DialogHeader>
           {selectedImage && (
-            <div className="space-y-4">
-              {/* 图片 */}
-              <div className="relative bg-muted rounded-lg overflow-hidden">
-                <img
-                  src={selectedImage.image_url}
-                  alt={selectedImage.prompt}
-                  className="w-full h-auto max-h-[60vh] object-contain"
-                />
+            <>
+              {/* 可滚动内容区 */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+                {/* 图片 */}
+                <div className="relative bg-muted rounded-lg overflow-hidden">
+                  <img
+                    src={selectedImage.image_url}
+                    alt={selectedImage.prompt}
+                    className="w-full h-auto max-h-[50vh] object-contain"
+                  />
+                </div>
+                
+                {/* 信息 */}
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
+                    <p className="text-sm">{selectedImage.prompt}</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>模型: {selectedImage.model}</span>
+                    <span>{formatDate(selectedImage.created_at)}</span>
+                  </div>
+                </div>
               </div>
               
-              {/* 信息 */}
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">提示词:</span>
-                  <p className="text-sm">{selectedImage.prompt}</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>模型: {selectedImage.model}</span>
-                  <span>{formatDate(selectedImage.created_at)}</span>
-                </div>
-              </div>
-              
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2 pt-2">
+              {/* 操作按钮 - 固定在底部 */}
+              <div className="shrink-0 flex items-center gap-2 pt-4 border-t mt-4">
                 <Button variant="outline" size="sm" onClick={() => handleDownload(selectedImage)}>
                   <Download className="h-4 w-4 mr-1.5" />
                   下载
@@ -264,7 +267,7 @@ export default function GalleryPage() {
                   </Button>
                 </Link>
               </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
