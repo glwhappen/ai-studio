@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // 处理图片 URL（自动迁移 base64 到对象存储）
     const images = await Promise.all((data || []).map(async (img) => {
       let imageUrl = img.image_url;
-      let proxyUrl: string | undefined;
+      let signedUrl: string | undefined;
       
       // 如果是 base64，上传到对象存储并更新数据库
       if (imageUrl && isBase64DataUrl(imageUrl)) {
@@ -90,30 +90,31 @@ export async function GET(request: NextRequest) {
             .from('images')
             .update({ image_url: key })
             .eq('id', img.id);
-          const signedUrl = await getImageUrl(key);
-          proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
-          imageUrl = signedUrl;
+          imageUrl = key;
+          signedUrl = await getImageUrl(key);
         } catch (e) {
           console.error('Failed to migrate image to storage:', img.id, e);
         }
       }
+      // 如果是对象存储 key，获取签名 URL（用于下载）
       else if (imageUrl && !imageUrl.startsWith('http')) {
         try {
-          const signedUrl = await getImageUrl(imageUrl);
-          proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
-          imageUrl = signedUrl;
+          signedUrl = await getImageUrl(imageUrl);
         } catch (e) {
           console.error('Failed to generate signed URL:', imageUrl, e);
         }
       }
       else if (imageUrl && imageUrl.startsWith('http')) {
-        proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        signedUrl = imageUrl;
       }
+      
+      // 使用稳定的图片 API URL（便于浏览器缓存）
+      const stableUrl = `/api/images/${img.id}/file`;
       
       return {
         ...img,
-        image_url: proxyUrl || imageUrl,
-        original_url: imageUrl,
+        image_url: stableUrl, // 稳定的 URL，浏览器可缓存
+        original_url: signedUrl || imageUrl, // 原始签名 URL，用于下载
         // 统计数据
         stats: {
           views: img.view_count || 0,

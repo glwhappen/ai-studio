@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getImageUrl } from '@/lib/storage';
+import crypto from 'crypto';
+
+// 通过图片 ID 获取图片文件（带缓存）
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  
+  if (!id) {
+    return NextResponse.json({ error: '缺少图片 ID' }, { status: 400 });
+  }
+  
+  try {
+    const client = getSupabaseClient();
+    
+    // 查询图片
+    const { data: image, error } = await client
+      .from('images')
+      .select('id, image_url, status')
+      .eq('id', id)
+      .single();
+    
+    if (error || !image) {
+      return NextResponse.json({ error: '图片不存在' }, { status: 404 });
+    }
+    
+    if (image.status !== 'completed' || !image.image_url) {
+      return NextResponse.json({ error: '图片未完成生成' }, { status: 400 });
+    }
+    
+    // 生成 ETag（基于图片 ID，保证稳定性）
+    const etag = `"${crypto.createHash('md5').update(id).digest('hex')}"`;
+    
+    // 检查客户端缓存
+    const ifNoneMatch = request.headers.get('if-none-match');
+    if (ifNoneMatch === etag) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          'ETag': etag,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      });
+    }
+    
+    let imageUrl = image.image_url;
+    
+    // 如果是对象存储 key，获取签名 URL
+    if (!imageUrl.startsWith('http')) {
+      try {
+        imageUrl = await getImageUrl(imageUrl);
+      } catch (e) {
+        return NextResponse.json({ error: '获取图片 URL 失败' }, { status: 500 });
+      }
+    }
+    
+    // 代理请求图片
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AI-Image-Generator/1.0)',
+      },
+    });
+    
+    if (!response.ok) {
+      return NextResponse.json({ error: '图片获取失败' }, { status: response.status });
+    }
+    
+    const imageBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
+    // 返回图片，强缓存 1 年
+    return new NextResponse(imageBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'ETag': etag,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+      },
+    });
+  } catch (error) {
+    console.error('Get image file error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '获取图片失败' },
+      { status: 500 }
+    );
+  }
+}
