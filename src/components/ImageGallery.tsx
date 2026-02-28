@@ -396,90 +396,112 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
 
       {/* 底部操作栏 */}
       {selectedImage && isPreviewOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-t border-white/10">
-          <div className="container mx-auto px-4 py-3">
-            {/* 图片信息 */}
-            <div className="flex items-start justify-between gap-4 mb-2">
-              <p className="text-white/90 text-sm line-clamp-2 flex-1">{selectedImage.prompt}</p>
-              <button
-                className="text-white/60 hover:text-white shrink-0"
-                onClick={() => setIsPreviewOpen(false)}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-t border-white/10">
+          {/* 提示词区域 */}
+          <div className="border-b border-white/10">
+            <div className="container mx-auto px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-white/40 text-xs">提示词</span>
+                  </div>
+                  <p className="text-white/90 text-sm line-clamp-2 break-words">
+                    {selectedImage.prompt}
+                  </p>
+                </div>
+                <button
+                  className="text-white/60 hover:text-white shrink-0 p-1"
+                  onClick={() => setIsPreviewOpen(false)}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            
-            {/* 操作按钮 */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          </div>
+
+          {/* 操作按钮区域 */}
+          <div className="container mx-auto px-4 py-3">
+            {/* 模型信息 */}
+            <div className="flex items-center justify-between mb-3 text-xs text-white/50">
+              <span>{selectedImage.provider === 'gemini' ? 'Gemini' : 'OpenAI'}</span>
+              <span>{formatDate(selectedImage.created_at)}</span>
+            </div>
+
+            {/* 主操作按钮 - 两行布局 */}
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {/* 公开/取消公开 */}
               {onTogglePublic && (
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                  className={`h-10 ${
+                    selectedImage.is_public 
+                      ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30' 
+                      : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                  }`}
                   onClick={() => {
                     onTogglePublic(selectedImage.id, !selectedImage.is_public);
                     setSelectedImage({ ...selectedImage, is_public: !selectedImage.is_public });
                   }}
                 >
                   {selectedImage.is_public ? (
-                    <>
-                      <GlobeLock className="h-4 w-4 mr-1.5" />
-                      取消公开
-                    </>
+                    <GlobeLock className="h-4 w-4" />
                   ) : (
-                    <>
-                      <Globe className="h-4 w-4 mr-1.5" />
-                      公开
-                    </>
+                    <Globe className="h-4 w-4" />
                   )}
                 </Button>
               )}
+              
+              {/* 下载 */}
               <Button 
                 variant="outline" 
-                size="sm"
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                size="sm" 
+                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
                 onClick={() => handleDownload(selectedImage)}
               >
-                <Download className="h-4 w-4 mr-1.5" />
-                下载
+                <Download className="h-4 w-4" />
               </Button>
+              
+              {/* 复制提示词 */}
               <Button 
                 variant="outline" 
                 size="sm"
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
                 onClick={() => handleCopyPrompt(selectedImage.prompt)}
               >
-                <Copy className="h-4 w-4 mr-1.5" />
-                复制
+                <Copy className="h-4 w-4" />
               </Button>
+              
+              {/* 删除 */}
               <Button 
-                variant="destructive" 
+                variant="outline" 
                 size="sm"
-                className="shrink-0"
+                className="h-10 bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30"
                 onClick={() => {
                   onDeleteImage(selectedImage.id);
                   setIsPreviewOpen(false);
                 }}
               >
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                删除
+                <Trash2 className="h-4 w-4" />
               </Button>
-              <Link 
-                href={buildCreateUrl(selectedImage)} 
-                onClick={() => setIsPreviewOpen(false)}
-                className="shrink-0"
-              >
-                <Button size="sm">
-                  <Wand2 className="h-4 w-4 mr-1.5" />
-                  创作
-                </Button>
-              </Link>
-              <span className="text-white/40 text-xs whitespace-nowrap ml-auto">
-                {selectedImage.model} · {formatDate(selectedImage.created_at)}
-              </span>
             </div>
+
+            {/* 用此提示词创作 - 大按钮 */}
+            <Link 
+              href={buildCreateUrl(selectedImage)} 
+              onClick={() => setIsPreviewOpen(false)}
+              className="block"
+            >
+              <Button 
+                size="sm" 
+                className="w-full h-11 text-base font-medium"
+              >
+                <Wand2 className="h-5 w-5 mr-2" />
+                用此提示词创作
+              </Button>
+            </Link>
           </div>
         </div>
       )}

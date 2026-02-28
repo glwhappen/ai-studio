@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 
@@ -22,6 +22,14 @@ export const metadata: Metadata = {
   authors: [{ name: 'AI Studio' }],
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,7 +38,10 @@ export default function RootLayout({
   const isDev = process.env.NODE_ENV === 'development';
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" translate="no">
+      <head>
+        <meta name="google" content="notranslate" />
+      </head>
       <body className={`antialiased`}>
         {isDev && <Inspector />}
         {children}
