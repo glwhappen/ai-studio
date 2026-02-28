@@ -56,6 +56,7 @@ function HomeContent() {
     const aspectRatioParam = searchParams.get('aspectRatio');
     const imageSizeParam = searchParams.get('imageSize');
     const sizeParam = searchParams.get('size');
+    const referenceImageUrlParam = searchParams.get('referenceImageUrl');
     
     // 只有有参数时才处理
     if (!promptParam && !modelParam && !providerParam) return;
@@ -83,6 +84,27 @@ function HomeContent() {
         ...(imageSizeParam && { imageSize: imageSizeParam }),
         ...(sizeParam && { openaiSize: sizeParam }),
       });
+    }
+    
+    // 处理参考图 URL
+    if (referenceImageUrlParam) {
+      setUseReferenceImage(true);
+      // 从 URL 加载图片并转换为 base64
+      fetch(referenceImageUrlParam)
+        .then(res => res.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            const mimeType = blob.type || 'image/png';
+            setReferenceImage({ base64: base64.split(',')[1], mimeType });
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(err => {
+          console.error('Failed to load reference image:', err);
+          setUseReferenceImage(false);
+        });
     }
   }, [searchParams, isLoaded, switchProvider, updateApiConfig]);
 

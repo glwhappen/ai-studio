@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ import {
   Copy,
   Pencil,
   RefreshCw,
+  Wand2,
 } from 'lucide-react';
 import type { ImageRecord, ImageStatus } from '@/hooks/useAppState';
 
@@ -35,6 +37,27 @@ interface ImageGalleryProps {
   onTogglePublic?: (id: string, isPublic: boolean) => void;
   onEdit?: (image: ImageRecord) => void;
   showStatus?: boolean;
+}
+
+// 构建创作链接参数
+function buildCreateUrl(image: ImageRecord): string {
+  const params = new URLSearchParams();
+  params.set('prompt', image.prompt);
+  params.set('model', image.model);
+  params.set('provider', image.provider);
+  
+  const config = image.config as Record<string, unknown> | null;
+  if (config) {
+    if (config.aspectRatio) params.set('aspectRatio', config.aspectRatio as string);
+    if (config.imageSize) params.set('imageSize', config.imageSize as string);
+    if (config.size) params.set('size', config.size as string);
+    // 如果有参考图标记，使用当前图片作为参考图
+    if (config.hasReferenceImage && image.original_url) {
+      params.set('referenceImageUrl', image.original_url);
+    }
+  }
+  
+  return `/?${params.toString()}`;
 }
 
 // 状态图标
@@ -443,6 +466,16 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                 <Trash2 className="h-4 w-4 mr-1.5" />
                 删除
               </Button>
+              <Link 
+                href={buildCreateUrl(selectedImage)} 
+                onClick={() => setIsPreviewOpen(false)}
+                className="shrink-0"
+              >
+                <Button size="sm">
+                  <Wand2 className="h-4 w-4 mr-1.5" />
+                  创作
+                </Button>
+              </Link>
               <span className="text-white/40 text-xs whitespace-nowrap ml-auto">
                 {selectedImage.model} · {formatDate(selectedImage.created_at)}
               </span>
