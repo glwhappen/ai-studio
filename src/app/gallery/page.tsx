@@ -4,8 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageViewer } from '@/components/ImageViewer';
-import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock } from 'lucide-react';
 import Link from 'next/link';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PublicImage {
   id: string;
@@ -13,9 +20,18 @@ interface PublicImage {
   model: string;
   provider: string;
   image_url: string;
-  original_url?: string; // 原始签名 URL，用于下载
+  original_url?: string;
   created_at: string;
   config: Record<string, unknown> | null;
+  stats: {
+    views: number;
+    likes: number;
+    creates: number;
+  };
+  userInteraction: {
+    has_liked: boolean;
+    has_disliked: boolean;
+  };
 }
 
 // 图片加载状态追踪
@@ -56,6 +72,17 @@ function buildCreateUrl(image: PublicImage): string {
   return `/?${params.toString()}`;
 }
 
+// 格式化数字
+function formatNumber(num: number): string {
+  if (num >= 10000) {
+    return (num / 10000).toFixed(1) + 'w';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k';
+  }
+  return String(num);
+}
+
 export default function GalleryPage() {
   const [images, setImages] = useState<PublicImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,20 +91,40 @@ export default function GalleryPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   
-  // 分页
+  // 分页和排序
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes'>('latest');
+  
+  // 用户 token
+  const [userToken, setUserToken] = useState<string | null>(null);
+  
+  // 获取 userToken
+  useEffect(() => {
+    const token = localStorage.getItem('ai_gallery_user_token');
+    if (token) {
+      setUserToken(token);
+    }
+  }, []);
 
-  const fetchGallery = useCallback(async (pageNum: number) => {
+  const fetchGallery = useCallback(async (pageNum: number, sort: typeof sortBy) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/gallery?page=${pageNum}&limit=20`);
+      const params = new URLSearchParams({
+        page: String(pageNum),
+        limit: '20',
+        sort: sort,
+      });
+      if (userToken) {
+        params.set('userToken', userToken);
+      }
+      
+      const response = await fetch(`/api/gallery?${params}`);
       const data = await response.json();
       
       if (data.success) {
         setImages(data.images);
         setTotalPages(data.pagination.totalPages);
-        // 清除失败记录
         setFailedImages(new Set());
       }
     } catch (error) {
@@ -85,11 +132,11 @@ export default function GalleryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userToken]);
 
   useEffect(() => {
-    fetchGallery(page);
-  }, [page, fetchGallery]);
+    fetchGallery(page, sortBy);
+  }, [page, sortBy, fetchGallery]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -103,7 +150,6 @@ export default function GalleryPage() {
       next.delete(imageId);
       return next;
     });
-    // 强制刷新图片（添加时间戳）
     setImages(prev => prev.map(img => 
       img.id === imageId 
         ? { ...img, image_url: img.image_url.includes('?') 
@@ -133,7 +179,6 @@ export default function GalleryPage() {
   };
 
   const handleDownload = async (image: PublicImage) => {
-    // 使用原始 URL 下载（代理 URL 可能有问题）
     const downloadUrl = image.original_url || image.image_url;
     
     try {
@@ -150,6 +195,136 @@ export default function GalleryPage() {
     } catch (error) {
       console.error('Download failed:', error);
     }
+  };
+  
+  // 记录浏览
+  const recordView = async (image: PublicImage) => {
+    if (!userToken) return;
+    try {
+      await fetch('/api/images/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageId: image.id,
+          userToken,
+          action: 'view',
+        }),
+      });
+    } catch (error) {
+      console.error('Record view error:', error);
+    }
+  };
+  
+  // 点赞/取消点赞
+  const handleLike = async (image: PublicImage, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!userToken) return;
+    
+    const action = image.userInteraction.has_liked ? 'unlike' : 'like';
+    
+    // 乐观更新
+    setImages(prev => prev.map(img => 
+      img.id === image.id 
+        ? {
+            ...img,
+            stats: {
+              ...img.stats,
+              likes: img.stats.likes + (action === 'like' ? 1 : -1),
+            },
+            userInteraction: {
+              ...img.userInteraction,
+              has_liked: action === 'like',
+              has_disliked: false,
+            },
+          }
+        : img
+    ));
+    
+    // 更新选中图片
+    if (selectedImage?.id === image.id) {
+      setSelectedImage(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          likes: prev.stats.likes + (action === 'like' ? 1 : -1),
+        },
+        userInteraction: {
+          ...prev.userInteraction,
+          has_liked: action === 'like',
+          has_disliked: false,
+        },
+      } : null);
+    }
+    
+    try {
+      await fetch('/api/images/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageId: image.id,
+          userToken,
+          action,
+        }),
+      });
+    } catch (error) {
+      console.error('Like error:', error);
+    }
+  };
+  
+  // 点踩/取消点踩
+  const handleDislike = async (image: PublicImage, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!userToken) return;
+    
+    const action = image.userInteraction.has_disliked ? 'undislike' : 'dislike';
+    
+    // 乐观更新
+    setImages(prev => prev.map(img => 
+      img.id === image.id 
+        ? {
+            ...img,
+            userInteraction: {
+              ...img.userInteraction,
+              has_disliked: action === 'dislike',
+              has_liked: false,
+            },
+          }
+        : img
+    ));
+    
+    // 更新选中图片
+    if (selectedImage?.id === image.id) {
+      setSelectedImage(prev => prev ? {
+        ...prev,
+        userInteraction: {
+          ...prev.userInteraction,
+          has_disliked: action === 'dislike',
+          has_liked: false,
+        },
+      } : null);
+    }
+    
+    try {
+      await fetch('/api/images/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageId: image.id,
+          userToken,
+          action,
+        }),
+      });
+    } catch (error) {
+      console.error('Dislike error:', error);
+    }
+  };
+  
+  // 打开图片预览
+  const handleOpenPreview = (image: PublicImage) => {
+    setSelectedImage(image);
+    setIsPreviewOpen(true);
+    // 记录浏览
+    recordView(image);
   };
 
   return (
@@ -172,10 +347,39 @@ export default function GalleryPage() {
       <main className="container mx-auto px-4 py-6">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="font-serif flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-primary" />
-              社区精选作品
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="font-serif flex items-center gap-2">
+                <ImageIcon className="h-5 w-5 text-primary" />
+                社区精选作品
+              </CardTitle>
+              
+              {/* 排序选择器 */}
+              <Select value={sortBy} onValueChange={(v) => { setSortBy(v as typeof sortBy); setPage(1); }}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      最新
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="popular">
+                    <div className="flex items-center gap-1.5">
+                      <Flame className="h-3.5 w-3.5" />
+                      最热
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="likes">
+                    <div className="flex items-center gap-1.5">
+                      <ThumbsUp className="h-3.5 w-3.5" />
+                      最多赞
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -205,15 +409,9 @@ export default function GalleryPage() {
                       <div
                         key={image.id}
                         className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid cursor-pointer"
-                        onClick={() => {
-                          if (!hasError) {
-                            setSelectedImage(image);
-                            setIsPreviewOpen(true);
-                          }
-                        }}
+                        onClick={() => !hasError && handleOpenPreview(image)}
                       >
                         {hasError ? (
-                          // 加载失败显示
                           <div className="aspect-square flex flex-col items-center justify-center gap-2 p-4 bg-muted/50">
                             <ImageIcon className="h-8 w-8 text-muted-foreground" />
                             <span className="text-xs text-muted-foreground text-center">图片加载失败</span>
@@ -239,13 +437,25 @@ export default function GalleryPage() {
                             loading="lazy"
                           />
                         )}
-                        {/* 悬停信息层 - 仅图片加载成功时显示 */}
+                        
+                        {/* 悬停信息层 */}
                         {!hasError && (
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                             <div className="absolute bottom-0 left-0 right-0 p-3">
-                              <p className="text-xs text-white line-clamp-2 mb-1">{image.prompt}</p>
+                              <p className="text-xs text-white line-clamp-2 mb-2">{image.prompt}</p>
+                              
+                              {/* 统计信息 */}
                               <div className="flex items-center justify-between">
-                                <p className="text-xs text-white/70">{formatDate(image.created_at)}</p>
+                                <div className="flex items-center gap-2">
+                                  <span className="flex items-center gap-1 text-white/70 text-xs">
+                                    <Eye className="h-3 w-3" />
+                                    {formatNumber(image.stats.views)}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-white/70 text-xs">
+                                    <ThumbsUp className="h-3 w-3" />
+                                    {formatNumber(image.stats.likes)}
+                                  </span>
+                                </div>
                                 {getSizeText(image) && (
                                   <span className="text-xs text-white/60 bg-white/20 rounded px-1.5 py-0.5">
                                     {getSizeText(image)}
@@ -255,7 +465,8 @@ export default function GalleryPage() {
                             </div>
                           </div>
                         )}
-                        {/* 提供商标识 - 仅图片加载成功时显示 */}
+                        
+                        {/* 提供商标识 */}
                         {!hasError && (
                           <div className="absolute top-2 left-2 flex items-center gap-1">
                             {image.provider === 'gemini' ? (
@@ -267,12 +478,37 @@ export default function GalleryPage() {
                                 <Bot className="h-3 w-3 text-white" />
                               </div>
                             )}
-                            {/* 参考图标识 */}
                             {hasReferenceImage(image) && (
                               <div className="bg-amber-500/80 rounded-full p-1" title="基于参考图生成">
                                 <RefImageIcon className="h-3 w-3 text-white" />
                               </div>
                             )}
+                          </div>
+                        )}
+                        
+                        {/* 点赞/点踩按钮 - 悬停显示 */}
+                        {!hasError && userToken && (
+                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              className={`p-1.5 rounded-full transition-colors ${
+                                image.userInteraction.has_liked 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-black/50 text-white/70 hover:bg-black/70'
+                              }`}
+                              onClick={(e) => handleLike(image, e)}
+                            >
+                              <ThumbsUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              className={`p-1.5 rounded-full transition-colors ${
+                                image.userInteraction.has_disliked 
+                                  ? 'bg-red-500 text-white' 
+                                  : 'bg-black/50 text-white/70 hover:bg-black/70'
+                              }`}
+                              onClick={(e) => handleDislike(image, e)}
+                            >
+                              <ThumbsDown className="h-3 w-3" />
+                            </button>
                           </div>
                         )}
                       </div>
@@ -318,7 +554,7 @@ export default function GalleryPage() {
         onClose={() => setIsPreviewOpen(false)}
       />
 
-      {/* 底部操作栏 - 仅在选择图片时显示 */}
+      {/* 底部操作栏 */}
       {selectedImage && isPreviewOpen && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-t border-white/10">
           <div className="container mx-auto px-4 py-3">
@@ -337,6 +573,49 @@ export default function GalleryPage() {
             
             {/* 操作按钮 */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {/* 统计信息 */}
+              <div className="flex items-center gap-3 text-white/60 text-sm shrink-0 mr-2">
+                <span className="flex items-center gap-1">
+                  <Eye className="h-4 w-4" />
+                  {formatNumber(selectedImage.stats.views)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <ThumbsUp className="h-4 w-4" />
+                  {formatNumber(selectedImage.stats.likes)}
+                </span>
+              </div>
+              
+              {/* 点赞/点踩按钮 */}
+              {userToken && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className={`shrink-0 ${
+                      selectedImage.userInteraction.has_liked 
+                        ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30' 
+                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                    }`}
+                    onClick={() => handleLike(selectedImage)}
+                  >
+                    <ThumbsUp className="h-4 w-4 mr-1.5" />
+                    {selectedImage.userInteraction.has_liked ? '已赞' : '点赞'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className={`shrink-0 ${
+                      selectedImage.userInteraction.has_disliked 
+                        ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30' 
+                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                    }`}
+                    onClick={() => handleDislike(selectedImage)}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              
               <Button 
                 variant="outline" 
                 size="sm" 

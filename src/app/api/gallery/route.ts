@@ -9,17 +9,36 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
+    const userToken = searchParams.get('userToken') || null;
+    const sortBy = searchParams.get('sort') || 'latest'; // latest, popular, likes
     
     const client = getSupabaseClient();
+    
+    // 构建排序
+    let orderBy = 'created_at';
+    let orderAscending = false;
+    
+    switch (sortBy) {
+      case 'popular': // 按浏览量排序
+        orderBy = 'view_count';
+        break;
+      case 'likes': // 按点赞数排序
+        orderBy = 'like_count';
+        break;
+      case 'latest':
+      default:
+        orderBy = 'created_at';
+        break;
+    }
     
     // 获取公开且已完成的图片
     const { data, error } = await client
       .from('images')
-      .select('id, prompt, model, provider, image_url, is_public, created_at, config')
+      .select('id, prompt, model, provider, image_url, is_public, created_at, config, view_count, like_count, create_count')
       .eq('is_public', true)
       .eq('status', 'completed')
       .not('image_url', 'is', null)
-      .order('created_at', { ascending: false })
+      .order(orderBy, { ascending: orderAscending })
       .range(offset, offset + limit - 1);
     
     if (error) {
@@ -38,6 +57,26 @@ export async function GET(request: NextRequest) {
       throw countError;
     }
     
+    // 获取用户交互状态（如果有 userToken）
+    let userInteractions: Record<string, { has_liked: boolean; has_disliked: boolean }> = {};
+    if (userToken && data && data.length > 0) {
+      const imageIds = data.map(img => img.id);
+      const { data: interactions } = await client
+        .from('image_interactions')
+        .select('image_id, has_liked, has_disliked')
+        .eq('user_token', userToken)
+        .in('image_id', imageIds);
+      
+      if (interactions) {
+        interactions.forEach(i => {
+          userInteractions[i.image_id] = {
+            has_liked: i.has_liked,
+            has_disliked: i.has_disliked,
+          };
+        });
+      }
+    }
+    
     // 处理图片 URL（自动迁移 base64 到对象存储）
     const images = await Promise.all((data || []).map(async (img) => {
       let imageUrl = img.image_url;
@@ -47,42 +86,45 @@ export async function GET(request: NextRequest) {
       if (imageUrl && isBase64DataUrl(imageUrl)) {
         try {
           const key = await uploadBase64Image(imageUrl, `${img.id}.png`);
-          // 更新数据库
           await client
             .from('images')
             .update({ image_url: key })
             .eq('id', img.id);
-          // 生成签名 URL
           const signedUrl = await getImageUrl(key);
-          // 创建代理 URL（解决跨域问题）
           proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
           imageUrl = signedUrl;
-          console.log(`Migrated image ${img.id} to object storage`);
         } catch (e) {
           console.error('Failed to migrate image to storage:', img.id, e);
-          // 迁移失败时返回原始 base64
         }
       }
-      // 如果是对象存储 key，生成签名 URL
       else if (imageUrl && !imageUrl.startsWith('http')) {
         try {
           const signedUrl = await getImageUrl(imageUrl);
-          // 创建代理 URL（解决跨域问题）
           proxyUrl = `/api/image-proxy?url=${encodeURIComponent(signedUrl)}`;
           imageUrl = signedUrl;
         } catch (e) {
           console.error('Failed to generate signed URL:', imageUrl, e);
         }
       }
-      // 如果已经是完整的 URL（签名 URL），创建代理 URL
       else if (imageUrl && imageUrl.startsWith('http')) {
         proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
       }
       
       return {
         ...img,
-        image_url: proxyUrl || imageUrl, // 优先使用代理 URL
-        original_url: imageUrl, // 保留原始 URL 供下载使用
+        image_url: proxyUrl || imageUrl,
+        original_url: imageUrl,
+        // 统计数据
+        stats: {
+          views: img.view_count || 0,
+          likes: img.like_count || 0,
+          creates: img.create_count || 0,
+        },
+        // 用户交互状态
+        userInteraction: userInteractions[img.id] || {
+          has_liked: false,
+          has_disliked: false,
+        },
       };
     }));
     
