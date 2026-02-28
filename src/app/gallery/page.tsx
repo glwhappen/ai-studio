@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -110,7 +110,9 @@ function GalleryContent() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false); // 提示词展开状态
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
-  const [isFromUrl, setIsFromUrl] = useState(false); // 是否是从 URL 参数打开的图片
+  
+  // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
+  const isClosingRef = useRef(false);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -179,20 +181,24 @@ function GalleryContent() {
   useEffect(() => {
     if (!isInitialized || images.length === 0) return;
     
+    // 如果正在关闭，跳过
+    if (isClosingRef.current) {
+      return;
+    }
+    
     const imageIdFromUrl = searchParams.get('id');
-    if (imageIdFromUrl) {
+    
+    // 如果 URL 有 id 但预览未打开，自动打开
+    if (imageIdFromUrl && !isPreviewOpen) {
       const image = images.find(img => img.id === imageIdFromUrl);
-      if (image && !isPreviewOpen) {
+      if (image) {
         setSelectedImage(image);
         setIsPreviewOpen(true);
-        setIsFromUrl(true); // 标记为从 URL 打开
-        // 确保地址栏显示 id
-        updateUrl(image.id);
         // 记录浏览
         recordView(image);
       }
     }
-  }, [isInitialized, images, searchParams, isPreviewOpen, updateUrl]);
+  }, [isInitialized, images, searchParams, isPreviewOpen]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -413,10 +419,10 @@ function GalleryContent() {
   
   // 打开图片预览
   const handleOpenPreview = (image: PublicImage) => {
+    isClosingRef.current = false; // 重置关闭状态
     setSelectedImage(image);
     setIsPreviewOpen(true);
     setIsPromptExpanded(false);
-    setIsFromUrl(false); // 用户主动点击打开
     // 更新 URL
     updateUrl(image.id);
     // 记录浏览
@@ -425,13 +431,11 @@ function GalleryContent() {
   
   // 关闭图片预览
   const handleClosePreview = () => {
+    isClosingRef.current = true; // 标记正在关闭
     setIsPreviewOpen(false);
     setIsPromptExpanded(false);
-    // 只有用户主动打开的图片，关闭时才清除 URL 参数
-    // 从 URL 打开的图片，保留 URL 参数以便分享
-    if (!isFromUrl) {
-      updateUrl(null);
-    }
+    // 清除 URL 中的图片 ID
+    updateUrl(null);
   };
 
   return (
