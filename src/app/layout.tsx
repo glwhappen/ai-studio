@@ -38,10 +38,7 @@ export default function RootLayout({
   const isDev = process.env.NODE_ENV === 'development';
 
   return (
-    <html lang="zh-CN" translate="no">
-      <head>
-        <meta name="google" content="notranslate" />
-      </head>
+    <html lang="zh-CN">
       <body className={`antialiased`}>
         {isDev && <Inspector />}
         {children}
