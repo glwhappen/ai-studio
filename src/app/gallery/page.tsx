@@ -94,7 +94,7 @@ export default function GalleryPage() {
   // 分页和排序
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes'>('latest');
+  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes'>('likes'); // 默认按最多赞排序
   
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
