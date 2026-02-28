@@ -9,9 +9,10 @@ interface ImageViewerProps {
   alt: string;
   isOpen: boolean;
   onClose: () => void;
+  onImageClick?: () => void; // 点击图片回调
 }
 
-export function ImageViewer({ src, alt, isOpen, onClose }: ImageViewerProps) {
+export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageViewerProps) {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -138,6 +139,13 @@ export function ImageViewer({ src, alt, isOpen, onClose }: ImageViewerProps) {
     }
   }, [onClose]);
 
+  // 点击图片
+  const handleImageClick = useCallback(() => {
+    if (scale === 1 && onImageClick) {
+      onImageClick();
+    }
+  }, [scale, onImageClick]);
+
   if (!isOpen) return null;
 
   return (
@@ -211,13 +219,19 @@ export function ImageViewer({ src, alt, isOpen, onClose }: ImageViewerProps) {
             cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
           }}
           draggable={false}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // 缩放为1时，点击图片触发回调
+            if (scale === 1 && !isDragging && onImageClick) {
+              handleImageClick();
+            }
+          }}
         />
       </div>
 
       {/* 底部提示 */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/50 px-3 py-1.5 rounded-full">
-        {scale === 1 ? '双击放大 · 滚轮缩放' : '拖拽移动 · 点击空白处关闭'}
+        {scale === 1 ? '双击放大 · 滚轮缩放 · 点击展开提示词' : '拖拽移动 · 点击空白处关闭'}
       </div>
     </div>
   );

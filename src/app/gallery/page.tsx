@@ -98,6 +98,7 @@ export default function GalleryPage() {
   
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false); // 提示词展开状态
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -559,108 +560,147 @@ export default function GalleryPage() {
         src={selectedImage?.image_url || ''}
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setIsPromptExpanded(false); // 关闭时重置展开状态
+        }}
+        onImageClick={() => setIsPromptExpanded(prev => !prev)} // 点击图片切换展开状态
       />
 
       {/* 底部操作栏 */}
       {selectedImage && isPreviewOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-t border-white/10">
-          <div className="container mx-auto px-4 py-3">
-            {/* 图片信息 */}
-            <div className="flex items-start justify-between gap-4 mb-2">
-              <p className="text-white/90 text-sm line-clamp-2 flex-1">{selectedImage.prompt}</p>
-              <button
-                className="text-white/60 hover:text-white shrink-0"
-                onClick={() => setIsPreviewOpen(false)}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-t border-white/10">
+          {/* 提示词区域 - 可点击展开 */}
+          <div 
+            className={`border-b border-white/10 cursor-pointer transition-all duration-300 ${
+              isPromptExpanded ? 'max-h-40' : 'max-h-14'
+            }`}
+            onClick={() => setIsPromptExpanded(prev => !prev)}
+          >
+            <div className="container mx-auto px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-white/40 text-xs">提示词</span>
+                    <span className="text-white/30 text-xs">
+                      {isPromptExpanded ? '点击收起' : '点击展开'}
+                    </span>
+                  </div>
+                  <p className={`text-white/90 text-sm break-words ${
+                    isPromptExpanded 
+                      ? 'max-h-28 overflow-y-auto' 
+                      : 'line-clamp-1'
+                  }`}>
+                    {selectedImage.prompt}
+                  </p>
+                </div>
+                <button
+                  className="text-white/60 hover:text-white shrink-0 p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsPreviewOpen(false);
+                    setIsPromptExpanded(false);
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            
-            {/* 操作按钮 */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {/* 统计信息 */}
-              <div className="flex items-center gap-3 text-white/60 text-sm shrink-0 mr-2">
+          </div>
+
+          {/* 操作按钮区域 */}
+          <div className="container mx-auto px-4 py-3">
+            {/* 统计信息 + 模型信息 */}
+            <div className="flex items-center justify-between mb-3 text-xs text-white/50">
+              <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-3.5 w-3.5" />
                   {formatNumber(selectedImage.stats.views)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <ThumbsUp className="h-4 w-4" />
+                  <ThumbsUp className="h-3.5 w-3.5" />
                   {formatNumber(selectedImage.stats.likes)}
                 </span>
               </div>
-              
-              {/* 点赞/点踩按钮 */}
-              {userToken && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className={`shrink-0 ${
-                      selectedImage.userInteraction.has_liked 
-                        ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30' 
-                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                    }`}
-                    onClick={() => handleLike(selectedImage)}
-                  >
-                    <ThumbsUp className="h-4 w-4 mr-1.5" />
-                    {selectedImage.userInteraction.has_liked ? '已赞' : '点赞'}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className={`shrink-0 ${
-                      selectedImage.userInteraction.has_disliked 
-                        ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30' 
-                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                    }`}
-                    onClick={() => handleDislike(selectedImage)}
-                  >
-                    <ThumbsDown className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
-                onClick={() => handleDownload(selectedImage)}
-              >
-                <Download className="h-4 w-4 mr-1.5" />
-                下载
-              </Button>
+              <span>{selectedImage.model} · {formatDate(selectedImage.created_at)}</span>
+            </div>
+
+            {/* 主操作按钮 - 两行布局 */}
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {/* 点赞 */}
               <Button 
                 variant="outline" 
                 size="sm"
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20 shrink-0"
+                className={`h-10 ${
+                  selectedImage.userInteraction.has_liked 
+                    ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30' 
+                    : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                }`}
+                onClick={() => userToken && handleLike(selectedImage)}
+                disabled={!userToken}
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </Button>
+              
+              {/* 点踩 */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                className={`h-10 ${
+                  selectedImage.userInteraction.has_disliked 
+                    ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30' 
+                    : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                }`}
+                onClick={() => userToken && handleDislike(selectedImage)}
+                disabled={!userToken}
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </Button>
+              
+              {/* 下载 */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
+                onClick={() => handleDownload(selectedImage)}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              
+              {/* 复制提示词 */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
                 onClick={() => handleCopyPrompt(selectedImage)}
               >
                 {copiedId === selectedImage.id ? (
-                  <>
-                    <Check className="h-4 w-4 mr-1.5 text-green-400" />
-                    已复制
-                  </>
+                  <Check className="h-4 w-4 text-green-400" />
                 ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-1.5" />
-                    复制提示词
-                  </>
+                  <Copy className="h-4 w-4" />
                 )}
               </Button>
-              <Link href={buildCreateUrl(selectedImage)} onClick={() => setIsPreviewOpen(false)}>
-                <Button size="sm" className="shrink-0">
-                  <Sparkles className="h-4 w-4 mr-1.5" />
-                  用此提示词创作
-                </Button>
-              </Link>
-              <span className="text-white/40 text-xs whitespace-nowrap ml-auto">
-                {selectedImage.model} · {formatDate(selectedImage.created_at)}
-              </span>
             </div>
+
+            {/* 用此提示词创作 - 大按钮 */}
+            <Link 
+              href={buildCreateUrl(selectedImage)} 
+              onClick={() => {
+                setIsPreviewOpen(false);
+                setIsPromptExpanded(false);
+              }}
+              className="block"
+            >
+              <Button 
+                size="sm" 
+                className="w-full h-11 text-base font-medium"
+              >
+                <Sparkles className="h-5 w-5 mr-2" />
+                用此提示词创作
+              </Button>
+            </Link>
           </div>
         </div>
       )}
