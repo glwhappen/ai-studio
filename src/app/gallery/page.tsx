@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageViewer } from '@/components/ImageViewer';
-import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import {
   Select,
@@ -110,6 +110,7 @@ function GalleryContent() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false); // 提示词展开状态
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
+  const [isFromUrl, setIsFromUrl] = useState(false); // 是否是从 URL 参数打开的图片
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -178,12 +179,15 @@ function GalleryContent() {
     const imageIdFromUrl = searchParams.get('id');
     if (imageIdFromUrl) {
       const image = images.find(img => img.id === imageIdFromUrl);
-      if (image) {
+      if (image && !isPreviewOpen) {
         setSelectedImage(image);
         setIsPreviewOpen(true);
+        setIsFromUrl(true); // 标记为从 URL 打开
+        // 记录浏览
+        recordView(image);
       }
     }
-  }, [isInitialized, images, searchParams]);
+  }, [isInitialized, images, searchParams, isPreviewOpen]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -222,6 +226,31 @@ function GalleryContent() {
       setTimeout(() => setCopiedId(null), 2000);
     } catch (error) {
       console.error('Copy failed:', error);
+    }
+  };
+  
+  // 分享图片链接
+  const handleShare = async (image: PublicImage) => {
+    const shareUrl = `${window.location.origin}/gallery?id=${image.id}`;
+    try {
+      // 尝试使用原生分享 API（手机端）
+      if (navigator.share) {
+        await navigator.share({
+          title: 'AI 创作室 - 作品分享',
+          text: image.prompt.slice(0, 100) + (image.prompt.length > 100 ? '...' : ''),
+          url: shareUrl,
+        });
+      } else {
+        // 回退到复制链接
+        await navigator.clipboard.writeText(shareUrl);
+        setCopiedId(`share-${image.id}`);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch (error) {
+      // 用户取消分享不算错误
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Share failed:', error);
+      }
     }
   };
 
@@ -371,6 +400,7 @@ function GalleryContent() {
     setSelectedImage(image);
     setIsPreviewOpen(true);
     setIsPromptExpanded(false);
+    setIsFromUrl(false); // 用户主动点击打开
     // 更新 URL
     updateUrl(image.id);
     // 记录浏览
@@ -381,8 +411,11 @@ function GalleryContent() {
   const handleClosePreview = () => {
     setIsPreviewOpen(false);
     setIsPromptExpanded(false);
-    // 清除 URL 中的图片 ID
-    updateUrl(null);
+    // 只有用户主动打开的图片，关闭时才清除 URL 参数
+    // 从 URL 打开的图片，保留 URL 参数以便分享
+    if (!isFromUrl) {
+      updateUrl(null);
+    }
   };
 
   return (
@@ -712,6 +745,20 @@ function GalleryContent() {
                 onClick={() => handleDownload(selectedImage)}
               >
                 <Download className="h-4 w-4" />
+              </Button>
+              
+              {/* 分享 */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
+                onClick={() => handleShare(selectedImage)}
+              >
+                {copiedId === `share-${selectedImage.id}` ? (
+                  <Check className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Share2 className="h-4 w-4" />
+                )}
               </Button>
               
               {/* 复制提示词 */}
