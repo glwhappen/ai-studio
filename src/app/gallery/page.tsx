@@ -99,11 +99,19 @@ export default function GalleryPage() {
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
   
-  // 获取 userToken
+  // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
-    const token = localStorage.getItem('ai_gallery_user_token');
+    // 使用与首页相同的 key，确保用户身份一致
+    const token = localStorage.getItem('ai-image-user-token');
     if (token) {
       setUserToken(token);
+    } else {
+      // 如果没有 token，生成一个（与首页逻辑一致）
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      const newToken = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('ai-image-user-token', newToken);
+      setUserToken(newToken);
     }
   }, []);
 
