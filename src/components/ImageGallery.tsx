@@ -51,9 +51,9 @@ function buildCreateUrl(image: ImageRecord): string {
     if (config.aspectRatio) params.set('aspectRatio', config.aspectRatio as string);
     if (config.imageSize) params.set('imageSize', config.imageSize as string);
     if (config.size) params.set('size', config.size as string);
-    // 如果有参考图标记，使用当前图片作为参考图
-    if (config.hasReferenceImage && image.original_url) {
-      params.set('referenceImageUrl', image.original_url);
+    // 如果有参考图 URL，传递给创作页面
+    if (config.referenceImageUrl) {
+      params.set('referenceImageUrl', config.referenceImageUrl as string);
     }
   }
   

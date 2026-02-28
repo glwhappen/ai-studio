@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ImageGallery } from '@/components/ImageGallery';
@@ -21,6 +21,7 @@ import Link from 'next/link';
 
 function HomeContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const {
     apiConfig,
     autoPublic,
@@ -170,20 +171,31 @@ function HomeContent() {
   const completedCount = images.filter(img => img.status === 'completed').length;
 
   // 编辑图片（重新生成）
-  const handleEditImage = (image: { prompt: string; model: string; provider: string }) => {
-    setPrompt(image.prompt);
-    // 切换到对应的供应商
-    if (image.provider === 'gemini' || image.provider === 'openai') {
-      if (apiConfig.currentProvider !== image.provider) {
-        switchProvider(image.provider);
+  const handleEditImage = (image: { 
+    prompt: string; 
+    model: string; 
+    provider: string;
+    config?: Record<string, unknown> | null;
+  }) => {
+    // 构建带参数的 URL
+    const params = new URLSearchParams();
+    params.set('prompt', image.prompt);
+    params.set('model', image.model);
+    params.set('provider', image.provider);
+    
+    // 传递尺寸参数
+    if (image.config) {
+      if (image.config.aspectRatio) params.set('aspectRatio', image.config.aspectRatio as string);
+      if (image.config.imageSize) params.set('imageSize', image.config.imageSize as string);
+      if (image.config.size) params.set('size', image.config.size as string);
+      // 传递参考图 URL
+      if (image.config.referenceImageUrl) {
+        params.set('referenceImageUrl', image.config.referenceImageUrl as string);
       }
     }
-    // 选择模型
-    if (image.model) {
-      updateApiConfig({ selectedModel: image.model });
-    }
-    // 切换到创作工作台
-    setActiveTab('create');
+    
+    // 使用路由导航，触发 URL 参数处理
+    router.push(`/?${params.toString()}`);
     setError(null);
   };
 

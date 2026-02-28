@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { uploadBase64Image, isBase64DataUrl } from '@/lib/storage';
+import { uploadBase64Image, isBase64DataUrl, getImageUrl } from '@/lib/storage';
 import type { ApiProvider } from '@/types';
 
 interface GenerateRequest {
@@ -37,6 +37,20 @@ export async function POST(request: NextRequest) {
     
     const client = getSupabaseClient();
     
+    // 如果有参考图片，先上传到对象存储
+    let referenceImageUrl: string | undefined;
+    if (referenceImage && referenceImageMime) {
+      try {
+        // 构建 base64 data URL
+        const base64DataUrl = `data:${referenceImageMime};base64,${referenceImage}`;
+        const key = await uploadBase64Image(base64DataUrl, `reference/${Date.now()}.png`);
+        referenceImageUrl = await getImageUrl(key);
+      } catch (uploadError) {
+        console.error('Failed to upload reference image:', uploadError);
+        // 上传失败时继续，但不存储参考图 URL
+      }
+    }
+    
     // 创建图片记录（pending 状态）
     const { data: imageRecord, error: insertError } = await client
       .from('images')
@@ -52,6 +66,7 @@ export async function POST(request: NextRequest) {
           imageSize,
           size,
           hasReferenceImage: !!referenceImage,
+          referenceImageUrl, // 存储参考图 URL
         },
       })
       .select('id')
