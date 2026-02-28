@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageViewer } from '@/components/ImageViewer';
@@ -83,7 +84,12 @@ function formatNumber(num: number): string {
   return String(num);
 }
 
-export default function GalleryPage() {
+// 主内容组件
+function GalleryContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
   const [images, setImages] = useState<PublicImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
@@ -99,21 +105,21 @@ export default function GalleryPage() {
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false); // 提示词展开状态
+  const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
-    // 使用与首页相同的 key，确保用户身份一致
     const token = localStorage.getItem('ai-image-user-token');
     if (token) {
       setUserToken(token);
     } else {
-      // 如果没有 token，生成一个（与首页逻辑一致）
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
       const newToken = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
       localStorage.setItem('ai-image-user-token', newToken);
       setUserToken(newToken);
     }
+    setIsInitialized(true);
   }, []);
 
   const fetchGallery = useCallback(async (pageNum: number, sort: typeof sortBy) => {
@@ -146,6 +152,34 @@ export default function GalleryPage() {
   useEffect(() => {
     fetchGallery(page, sortBy);
   }, [page, sortBy, fetchGallery]);
+  
+  // 更新 URL（打开/关闭图片时）
+  const updateUrl = useCallback((imageId: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    
+    if (imageId) {
+      params.set('id', imageId);
+    } else {
+      params.delete('id');
+    }
+    
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [pathname, searchParams, router]);
+  
+  // 根据 URL 参数自动打开图片
+  useEffect(() => {
+    if (!isInitialized || images.length === 0) return;
+    
+    const imageIdFromUrl = searchParams.get('id');
+    if (imageIdFromUrl) {
+      const image = images.find(img => img.id === imageIdFromUrl);
+      if (image) {
+        setSelectedImage(image);
+        setIsPreviewOpen(true);
+      }
+    }
+  }, [isInitialized, images, searchParams]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -332,8 +366,19 @@ export default function GalleryPage() {
   const handleOpenPreview = (image: PublicImage) => {
     setSelectedImage(image);
     setIsPreviewOpen(true);
+    setIsPromptExpanded(false);
+    // 更新 URL
+    updateUrl(image.id);
     // 记录浏览
     recordView(image);
+  };
+  
+  // 关闭图片预览
+  const handleClosePreview = () => {
+    setIsPreviewOpen(false);
+    setIsPromptExpanded(false);
+    // 清除 URL 中的图片 ID
+    updateUrl(null);
   };
 
   return (
@@ -560,10 +605,7 @@ export default function GalleryPage() {
         src={selectedImage?.image_url || ''}
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
-        onClose={() => {
-          setIsPreviewOpen(false);
-          setIsPromptExpanded(false); // 关闭时重置展开状态
-        }}
+        onClose={handleClosePreview}
         onImageClick={() => setIsPromptExpanded(prev => !prev)} // 点击图片切换展开状态
       />
 
@@ -598,8 +640,7 @@ export default function GalleryPage() {
                   className="text-white/60 hover:text-white shrink-0 p-1"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsPreviewOpen(false);
-                    setIsPromptExpanded(false);
+                    handleClosePreview();
                   }}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -687,10 +728,7 @@ export default function GalleryPage() {
             {/* 用此提示词创作 - 大按钮 */}
             <Link 
               href={buildCreateUrl(selectedImage)} 
-              onClick={() => {
-                setIsPreviewOpen(false);
-                setIsPromptExpanded(false);
-              }}
+              onClick={handleClosePreview}
               className="block"
             >
               <Button 
@@ -705,5 +743,18 @@ export default function GalleryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// 用 Suspense 包裹的主页面组件
+export default function GalleryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <GalleryContent />
+    </Suspense>
   );
 }
