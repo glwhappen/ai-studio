@@ -224,14 +224,14 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                   />
                 )
               ) : (
-                <div className="aspect-square max-h-48 flex flex-col items-center justify-center gap-2 bg-muted/50 p-3">
+                <div className="flex flex-col items-center justify-center gap-2 bg-muted/50 p-4 min-h-[120px]">
                   <StatusIcon status={image.status} />
                   <span className="text-xs text-muted-foreground">
                     {StatusText({ status: image.status })}
                   </span>
                   {image.status === 'failed' && image.error_message && (
-                    <span className="text-xs text-red-500 text-center line-clamp-2" title={image.error_message}>
-                      {image.error_message}
+                    <span className="text-xs text-red-500 text-center line-clamp-2 max-w-full" title={image.error_message}>
+                      {image.error_message.length > 50 ? image.error_message.slice(0, 50) + '...' : image.error_message}
                     </span>
                   )}
                 </div>
@@ -345,22 +345,30 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
             )}
             
             {/* 操作按钮 - 失败状态 */}
-            {image.status === 'failed' && onEdit && (
+            {image.status === 'failed' && (
               <div className="absolute top-2 right-2 flex gap-1">
+                {onEdit && (
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(image);
+                    }}
+                    title="编辑重试"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => onEdit(image)}
-                  title="编辑重试"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onDeleteImage(image.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteImage(image.id);
+                  }}
                   title="删除"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -375,7 +383,10 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                   variant="secondary"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => onDeleteImage(image.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteImage(image.id);
+                  }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
