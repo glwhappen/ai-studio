@@ -160,17 +160,20 @@ function GalleryContent() {
   
   // 更新 URL（打开/关闭图片时）
   const updateUrl = useCallback((imageId: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
+    // 直接使用 window.location 获取当前 URL，避免闭包问题
+    const currentUrl = new URL(window.location.href);
     
     if (imageId) {
-      params.set('id', imageId);
+      currentUrl.searchParams.set('id', imageId);
     } else {
-      params.delete('id');
+      currentUrl.searchParams.delete('id');
     }
     
-    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    const newUrl = currentUrl.searchParams.toString() 
+      ? `${currentUrl.pathname}?${currentUrl.searchParams.toString()}` 
+      : currentUrl.pathname;
     router.replace(newUrl, { scroll: false });
-  }, [pathname, searchParams, router]);
+  }, [router]);
   
   // 根据 URL 参数自动打开图片
   useEffect(() => {
@@ -183,11 +186,13 @@ function GalleryContent() {
         setSelectedImage(image);
         setIsPreviewOpen(true);
         setIsFromUrl(true); // 标记为从 URL 打开
+        // 确保地址栏显示 id
+        updateUrl(image.id);
         // 记录浏览
         recordView(image);
       }
     }
-  }, [isInitialized, images, searchParams, isPreviewOpen]);
+  }, [isInitialized, images, searchParams, isPreviewOpen, updateUrl]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -231,12 +236,15 @@ function GalleryContent() {
   
   // 分享图片链接
   const handleShare = async (image: PublicImage) => {
-    const shareUrl = `${window.location.origin}/gallery?id=${image.id}`;
+    // 使用当前页面的 origin 确保正确
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${origin}/gallery?id=${image.id}`;
+    
     try {
       // 尝试使用原生分享 API（手机端）
       if (navigator.share) {
         await navigator.share({
-          title: 'AI 创作室 - 作品分享',
+          title: 'AI 创作室',
           text: image.prompt.slice(0, 100) + (image.prompt.length > 100 ? '...' : ''),
           url: shareUrl,
         });
@@ -250,6 +258,14 @@ function GalleryContent() {
       // 用户取消分享不算错误
       if ((error as Error).name !== 'AbortError') {
         console.error('Share failed:', error);
+        // 分享失败也尝试复制链接
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setCopiedId(`share-${image.id}`);
+          setTimeout(() => setCopiedId(null), 2000);
+        } catch (e) {
+          console.error('Copy also failed:', e);
+        }
       }
     }
   };
@@ -705,7 +721,7 @@ function GalleryContent() {
               <span>{selectedImage.model} · {formatDate(selectedImage.created_at)}</span>
             </div>
 
-            {/* 主操作按钮 - 两行布局 */}
+            {/* 主操作按钮 */}
             <div className="grid grid-cols-4 gap-2 mb-2">
               {/* 点赞 */}
               <Button 
@@ -760,21 +776,27 @@ function GalleryContent() {
                   <Share2 className="h-4 w-4" />
                 )}
               </Button>
-              
-              {/* 复制提示词 */}
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="h-10 bg-white/10 border-white/20 text-white hover:bg-white/20"
-                onClick={() => handleCopyPrompt(selectedImage)}
-              >
-                {copiedId === selectedImage.id ? (
-                  <Check className="h-4 w-4 text-green-400" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
             </div>
+            
+            {/* 复制提示词 */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="w-full h-10 bg-white/10 border-white/20 text-white hover:bg-white/20 mb-2"
+              onClick={() => handleCopyPrompt(selectedImage)}
+            >
+              {copiedId === selectedImage.id ? (
+                <>
+                  <Check className="h-4 w-4 text-green-400 mr-2" />
+                  已复制
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4 mr-2" />
+                  复制提示词
+                </>
+              )}
+            </Button>
 
             {/* 用此提示词创作 - 大按钮 */}
             <Link 
