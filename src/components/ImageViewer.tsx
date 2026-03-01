@@ -16,9 +16,11 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isPinching, setIsPinching] = useState(false); // 是否正在双指缩放
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, scale: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
   const [lastPinchDist, setLastPinchDist] = useState(0);
+  const [pinchStartScale, setPinchStartScale] = useState(1); // 双指缩放开始时的缩放比例
 
   // 重置状态
   const resetState = useCallback(() => {
@@ -92,43 +94,54 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
   // 触摸开始
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
+      // 单指拖拽
       setIsDragging(true);
+      setIsPinching(false);
       setDragStart({
         x: e.touches[0].clientX - position.x,
         y: e.touches[0].clientY - position.y,
         scale,
       });
     } else if (e.touches.length === 2) {
+      // 双指缩放
       setIsDragging(false);
+      setIsPinching(true);
       const dx = e.touches[1].clientX - e.touches[0].clientX;
       const dy = e.touches[1].clientY - e.touches[0].clientY;
-      setLastPinchDist(Math.sqrt(dx * dx + dy * dy));
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      setLastPinchDist(dist);
+      setPinchStartScale(scale); // 记录开始时的缩放比例
     }
   }, [position, scale]);
 
   // 触摸移动
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1 && isDragging) {
+    if (e.touches.length === 1 && isDragging && !isPinching) {
+      // 单指拖拽
       setPosition({
         x: e.touches[0].clientX - dragStart.x,
         y: e.touches[0].clientY - dragStart.y,
       });
-    } else if (e.touches.length === 2) {
+    } else if (e.touches.length === 2 && isPinching) {
+      // 双指缩放 - 使用比例计算，更跟手
       const dx = e.touches[1].clientX - e.touches[0].clientX;
       const dy = e.touches[1].clientY - e.touches[0].clientY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
       if (lastPinchDist > 0) {
-        const delta = (dist - lastPinchDist) * 0.01;
-        setScale(prev => Math.max(0.5, Math.min(prev + delta, 8)));
+        // 计算缩放比例：当前距离 / 初始距离
+        const scaleFactor = dist / lastPinchDist;
+        // 基于初始缩放比例计算新缩放
+        const newScale = pinchStartScale * scaleFactor;
+        setScale(Math.max(0.5, Math.min(newScale, 8)));
       }
-      setLastPinchDist(dist);
     }
-  }, [isDragging, dragStart, lastPinchDist]);
+  }, [isDragging, isPinching, dragStart, lastPinchDist, pinchStartScale]);
 
   // 触摸结束
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false);
+    setIsPinching(false);
     setLastPinchDist(0);
   }, []);
 
@@ -215,14 +228,14 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
           className="max-w-full max-h-full object-contain select-none"
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-            transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+            transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out',
             cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
           }}
           draggable={false}
           onClick={(e) => {
             e.stopPropagation();
             // 缩放为1时，点击图片触发回调
-            if (scale === 1 && !isDragging && onImageClick) {
+            if (scale === 1 && !isDragging && !isPinching && onImageClick) {
               handleImageClick();
             }
           }}
