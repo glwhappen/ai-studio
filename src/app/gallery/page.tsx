@@ -107,6 +107,7 @@ function GalleryContent() {
   // 分页和排序
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes' | 'random'>('random'); // 默认随机排序
+  const [refreshKey, setRefreshKey] = useState(0); // 用于触发刷新
   
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -184,7 +185,7 @@ function GalleryContent() {
   useEffect(() => {
     if (!isInitialized) return;
     fetchGallery(1, sortBy);
-  }, [isInitialized, sortBy, fetchGallery]);
+  }, [isInitialized, sortBy, refreshKey, fetchGallery]);
   
   // 加载更多
   useEffect(() => {
@@ -602,6 +603,7 @@ function GalleryContent() {
                     setPage(1);
                     setImages([]);
                     setHasMore(true);
+                    setRefreshKey(prev => prev + 1); // 触发刷新
                   }}
                   disabled={isLoading || isLoadingMore}
                   title="刷新"
