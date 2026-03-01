@@ -581,7 +581,7 @@ function HomeContent() {
 
       {/* AI改写对话框 */}
       <Dialog open={isRewriteDialogOpen} onOpenChange={setIsRewriteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>AI改写提示词</DialogTitle>
             <DialogDescription>
@@ -591,16 +591,13 @@ function HomeContent() {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="rewrite-instruction">修改指令</Label>
-              <Input
+              <Textarea
                 id="rewrite-instruction"
-                placeholder="输入你想要的修改内容..."
+                placeholder="输入你想要的修改内容...&#10;例如：把主角换成一只橘猫、改成水彩画风格、增加黄昏的光线效果"
                 value={rewriteInstruction}
                 onChange={(e) => setRewriteInstruction(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isRewriting) {
-                    handleRewritePrompt();
-                  }
-                }}
+                className="min-h-[100px] resize-none"
+                disabled={isRewriting}
               />
             </div>
           </div>
