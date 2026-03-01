@@ -22,12 +22,12 @@ function weightedRandomSelect<T extends { id: string; like_count: number | null;
   // 计算每项的权重
   // 基础权重 = 1
   // 点赞权重 = like_count * 0.1（每个点赞增加 10% 权重）
-  // 点踩权重 = dislike_count * 0.2（每个点踩减少 20% 权重）
+  // 点踩权重 = dislike_count * 0.5（每个点踩减少 50% 权重）
   // 最小权重 = 0.1（保证有点踩的图片仍有机会被选中）
   const weights = items.map(item => {
     const baseWeight = 1;
     const likeBonus = (item.like_count || 0) * 0.1;
-    const dislikePenalty = (item.dislike_count || 0) * 0.2;
+    const dislikePenalty = (item.dislike_count || 0) * 0.5;
     return Math.max(0.1, baseWeight + likeBonus - dislikePenalty);
   });
   
