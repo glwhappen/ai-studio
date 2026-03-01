@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
 import { SettingsPanel, loadPromptTemplates } from '@/components/SettingsPanel';
@@ -62,6 +62,69 @@ function HomeContent() {
   const [rewriteInstruction, setRewriteInstruction] = useState('');
   const [isRewriting, setIsRewriting] = useState(false);
 
+  // 提示词历史记录（用于撤销/重做）
+  const [promptHistory, setPromptHistory] = useState<string[]>(['']);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isHistoryUpdate = useRef(false);
+
+  // 更新提示词并记录历史
+  const updatePromptWithHistory = useCallback((newPrompt: string) => {
+    if (isHistoryUpdate.current) {
+      isHistoryUpdate.current = false;
+      return;
+    }
+    // 只有内容真正变化时才记录
+    if (newPrompt !== promptHistory[historyIndex]) {
+      // 截断后面的历史
+      const newHistory = [...promptHistory.slice(0, historyIndex + 1), newPrompt];
+      // 限制历史记录数量
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+      setPromptHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+    setPrompt(newPrompt);
+  }, [promptHistory, historyIndex]);
+
+  // 撤销
+  const undoPrompt = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      isHistoryUpdate.current = true;
+      setPrompt(promptHistory[newIndex]);
+    }
+  }, [historyIndex, promptHistory]);
+
+  // 重做
+  const redoPrompt = useCallback(() => {
+    if (historyIndex < promptHistory.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      isHistoryUpdate.current = true;
+      setPrompt(promptHistory[newIndex]);
+    }
+  }, [historyIndex, promptHistory]);
+
+  // 键盘快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Z 撤销
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoPrompt();
+      }
+      // Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y 重做
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redoPrompt();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoPrompt, redoPrompt]);
+
   // 从 URL 参数读取提示词和配置（需要等待 localStorage 状态恢复）
   useEffect(() => {
     // 必须等待状态加载完成后再处理 URL 参数
@@ -79,7 +142,12 @@ function HomeContent() {
     if (!promptParam && !modelParam && !providerParam) return;
     
     if (promptParam) {
+      // 使用 ref 标记这是历史更新，避免重复记录
+      isHistoryUpdate.current = true;
       setPrompt(promptParam);
+      // 重置历史记录
+      setPromptHistory(['', promptParam]);
+      setHistoryIndex(1);
       setActiveTab('create');
     }
     
@@ -178,7 +246,7 @@ function HomeContent() {
       
       const data = await response.json();
       if (data.success) {
-        setPrompt(data.enhancedPrompt);
+        updatePromptWithHistory(data.enhancedPrompt);
       } else {
         setError(data.error || '优化失败');
       }
@@ -212,7 +280,7 @@ function HomeContent() {
       
       const data = await response.json();
       if (data.success) {
-        setPrompt(data.enhancedPrompt);
+        updatePromptWithHistory(data.enhancedPrompt);
         setIsRewriteDialogOpen(false);
         setRewriteInstruction('');
       } else {
@@ -227,7 +295,10 @@ function HomeContent() {
 
   // 清空提示词
   const handleClearPrompt = () => {
+    isHistoryUpdate.current = true;
     setPrompt('');
+    setPromptHistory(['']);
+    setHistoryIndex(0);
     setError(null);
   };
 
@@ -247,7 +318,10 @@ function HomeContent() {
 
     try {
       await submitGeneration(prompt.trim(), useReferenceImage ? referenceImage : null);
+      isHistoryUpdate.current = true;
       setPrompt('');
+      setPromptHistory(['']);
+      setHistoryIndex(0);
       setReferenceImage(null);
       setUseReferenceImage(false);
     } catch (err) {
@@ -268,25 +342,59 @@ function HomeContent() {
     provider: string;
     config?: Record<string, unknown> | null;
   }) => {
-    // 构建带参数的 URL
-    const params = new URLSearchParams();
-    params.set('prompt', image.prompt);
-    params.set('model', image.model);
-    params.set('provider', image.provider);
+    // 直接设置状态
+    isHistoryUpdate.current = true;
+    setPrompt(image.prompt);
+    setPromptHistory(['', image.prompt]);
+    setHistoryIndex(1);
+    setActiveTab('create');
+    
+    // 自动选择供应商
+    if (image.provider === 'gemini' || image.provider === 'openai') {
+      switchProvider(image.provider);
+    }
+    
+    // 自动选择模型
+    if (image.model) {
+      updateApiConfig({ selectedModel: image.model });
+    }
     
     // 传递尺寸参数
     if (image.config) {
-      if (image.config.aspectRatio) params.set('aspectRatio', image.config.aspectRatio as string);
-      if (image.config.imageSize) params.set('imageSize', image.config.imageSize as string);
-      if (image.config.size) params.set('size', image.config.size as string);
-      // 传递参考图 URL
+      const sizeConfig: {
+        useCustomSize: boolean;
+        aspectRatio?: string;
+        imageSize?: string;
+        openaiSize?: string;
+      } = { useCustomSize: true };
+      
+      if (image.config.aspectRatio) sizeConfig.aspectRatio = image.config.aspectRatio as string;
+      if (image.config.imageSize) sizeConfig.imageSize = image.config.imageSize as string;
+      if (image.config.size) sizeConfig.openaiSize = image.config.size as string;
+      
+      updateApiConfig(sizeConfig);
+      
+      // 处理参考图 URL
       if (image.config.referenceImageUrl) {
-        params.set('referenceImageUrl', image.config.referenceImageUrl as string);
+        setUseReferenceImage(true);
+        fetch(image.config.referenceImageUrl as string)
+          .then(res => res.blob())
+          .then(blob => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              const mimeType = blob.type || 'image/png';
+              setReferenceImage({ base64: base64.split(',')[1], mimeType });
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch(err => {
+            console.error('Failed to load reference image:', err);
+            setUseReferenceImage(false);
+          });
       }
     }
     
-    // 使用路由导航，触发 URL 参数处理
-    router.push(`/?${params.toString()}`);
     setError(null);
   };
 
@@ -408,12 +516,41 @@ function HomeContent() {
                         id="prompt"
                         placeholder="描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"
                         value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
+                        onChange={(e) => updatePromptWithHistory(e.target.value)}
                         className="min-h-[120px] resize-none"
                         disabled={isSubmitting}
                       />
                       {/* 提示词操作按钮 */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* 撤销/重做 */}
+                        <div className="flex items-center gap-1 mr-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={undoPrompt}
+                            disabled={historyIndex <= 0 || isSubmitting}
+                            className="h-8 w-8 p-0"
+                            title="撤销 (Ctrl+Z)"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={redoPrompt}
+                            disabled={historyIndex >= promptHistory.length - 1 || isSubmitting}
+                            className="h-8 w-8 p-0"
+                            title="重做 (Ctrl+Y)"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                            </svg>
+                          </Button>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
