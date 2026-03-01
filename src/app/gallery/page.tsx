@@ -775,7 +775,7 @@ function GalleryContent() {
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
         onClose={handleClosePreview}
-        onImageClick={() => setIsPromptExpanded(prev => !prev)} // 点击图片切换展开状态
+
       />
 
       {/* 底部操作栏 */}
@@ -784,10 +784,15 @@ function GalleryContent() {
           <div className="container mx-auto px-4 py-2 lg:py-3">
             {/* 提示词区域 - 移动端可点击展开，电脑端始终显示 */}
             <div 
-              className={`cursor-pointer lg:cursor-default transition-all duration-300 ${
+              className={`transition-all duration-300 cursor-pointer lg:cursor-default ${
                 isPromptExpanded ? 'max-h-20' : 'max-h-6 lg:max-h-12'
               }`}
-              onClick={() => setIsPromptExpanded(prev => !prev)}
+              onClick={(e) => {
+                // 只在移动端触发展开
+                if (window.innerWidth < 1024) {
+                  setIsPromptExpanded(prev => !prev);
+                }
+              }}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
