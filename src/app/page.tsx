@@ -473,28 +473,32 @@ function HomeContent() {
 
           {/* 创作工作台 */}
           <TabsContent value="create">
-            <div className="grid lg:grid-cols-[1fr,1.2fr] gap-6">
-              {/* 左侧：生成器 */}
-              <Card>
-                <CardHeader className="pb-3">
+            {/* 电脑端：三栏布局 - 左侧配置 | 中间创作 | 右侧作品 */}
+            {/* 平板/手机：单栏布局 */}
+            <div className="grid lg:grid-cols-[240px_1fr_1fr] xl:grid-cols-[280px_1fr_1.2fr] gap-4 lg:gap-6">
+              
+              {/* 左侧：配置选项（电脑端侧边栏） */}
+              <Card className="lg:h-fit lg:sticky lg:top-20">
+                <CardHeader className="pb-3 lg:hidden">
                   <CardTitle className="font-serif flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
-                    创作工作台
+                    创作配置
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-5">
+                <CardContent className="p-4 lg:p-5">
+                  <div className="space-y-4">
                     {/* 供应商选择器 */}
-                    <ProviderSelector
-                      currentProvider={currentProvider}
-                      onProviderChange={switchProvider}
-                    />
-
-                    <Separator />
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">供应商</Label>
+                      <ProviderSelector
+                        currentProvider={currentProvider}
+                        onProviderChange={switchProvider}
+                      />
+                    </div>
 
                     {/* 模型选择 */}
-                    <div className="space-y-2">
-                      <Label className="text-base font-serif">选择模型</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">模型</Label>
                       <ModelSelector
                         apiConfig={apiConfig}
                         selectedModel={apiConfig.selectedModel}
@@ -505,45 +509,56 @@ function HomeContent() {
                     </div>
 
                     {/* 尺寸选择 */}
-                    <SizeSelector
-                      provider={currentProvider}
-                      aspectRatio={apiConfig.aspectRatio}
-                      imageSize={apiConfig.imageSize}
-                      openaiSize={apiConfig.openaiSize}
-                      useCustomSize={apiConfig.useCustomSize}
-                      apiKey={currentProviderConfig.apiKey}
-                      onSizeChange={handleSizeChange}
-                    />
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">图片尺寸</Label>
+                      <SizeSelector
+                        provider={currentProvider}
+                        aspectRatio={apiConfig.aspectRatio}
+                        imageSize={apiConfig.imageSize}
+                        openaiSize={apiConfig.openaiSize}
+                        useCustomSize={apiConfig.useCustomSize}
+                        apiKey={currentProviderConfig.apiKey}
+                        onSizeChange={handleSizeChange}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                    <Separator />
-
+              {/* 中间：创作区域 */}
+              <Card className="lg:h-fit lg:sticky lg:top-20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <Wand2 className="h-5 w-5 text-primary" />
+                    创作提示词
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 lg:p-5">
+                  <div className="space-y-4">
                     {/* 提示词输入 */}
                     <div className="space-y-2">
-                      <Label htmlFor="prompt" className="text-base font-serif">
-                        创作提示词
-                      </Label>
                       <Textarea
                         id="prompt"
                         placeholder="描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"
                         value={prompt}
                         onChange={(e) => updatePromptWithHistory(e.target.value)}
-                        className="min-h-[120px] resize-none"
+                        className="min-h-[140px] lg:min-h-[180px] resize-none"
                         disabled={isSubmitting}
                       />
                       {/* 提示词操作按钮 */}
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {/* 撤销/重做 */}
-                        <div className="flex items-center gap-1 mr-2">
+                        <div className="flex items-center gap-0.5">
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={undoPrompt}
                             disabled={historyIndex <= 0 || isSubmitting}
-                            className="h-8 w-8 p-0"
+                            className="h-7 w-7 p-0"
                             title="撤销 (Ctrl+Z)"
                           >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                             </svg>
                           </Button>
@@ -553,56 +568,56 @@ function HomeContent() {
                             size="sm"
                             onClick={redoPrompt}
                             disabled={historyIndex >= promptHistory.length - 1 || isSubmitting}
-                            className="h-8 w-8 p-0"
+                            className="h-7 w-7 p-0"
                             title="重做 (Ctrl+Y)"
                           >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
                             </svg>
                           </Button>
                         </div>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={handleClearPrompt}
                           disabled={!prompt.trim() || isSubmitting}
-                          className="gap-1"
+                          className="h-7 px-2 text-xs"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3 mr-1" />
                           清空
                         </Button>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={handleEnhancePrompt}
                           disabled={!prompt.trim() || isSubmitting || isEnhancing}
-                          className="gap-1"
+                          className="h-7 px-2 text-xs"
                         >
                           {isEnhancing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3.5 w-3.5" />
+                            <Wand2 className="h-3 w-3 mr-1" />
                           )}
                           AI优化
                         </Button>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => setIsRewriteDialogOpen(true)}
                           disabled={!prompt.trim() || isSubmitting}
-                          className="gap-1"
+                          className="h-7 px-2 text-xs"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                          AI改写
+                          <Pencil className="h-3 w-3 mr-1" />
+                          改写
                         </Button>
                       </div>
                     </div>
 
                     {/* 参考图片（图生图） */}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="use-reference"
@@ -629,14 +644,14 @@ function HomeContent() {
 
                     {/* 处理中提示 */}
                     {pendingCount > 0 && (
-                      <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
                         <Clock className="h-4 w-4 animate-spin" />
                         有 {pendingCount} 个任务正在处理中...
                       </div>
                     )}
 
                     {error && (
-                      <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                      <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-2.5">
                         {error}
                       </div>
                     )}
@@ -667,7 +682,34 @@ function HomeContent() {
                 </CardContent>
               </Card>
 
-              {/* 右侧：最近作品预览 */}
+              {/* 右侧：最近作品 */}
+              <Card className="hidden lg:block">
+                <CardHeader className="pb-3">
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                    最近作品
+                    {pendingCount > 0 && (
+                      <span className="text-sm font-normal text-muted-foreground ml-auto flex items-center gap-1">
+                        <Clock className="h-3 w-3 animate-spin" />
+                        {pendingCount}
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ImageGallery
+                    images={images.slice(0, 12)}
+                    onDeleteImage={deleteImage}
+                    onTogglePublic={toggleImagePublic}
+                    onEdit={handleEditImage}
+                    showStatus={true}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 手机端：最近作品显示在下方 */}
+            <div className="lg:hidden mt-4">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="font-serif flex items-center gap-2">
@@ -676,14 +718,14 @@ function HomeContent() {
                     {pendingCount > 0 && (
                       <span className="text-sm font-normal text-muted-foreground ml-auto flex items-center gap-1">
                         <Clock className="h-3 w-3 animate-spin" />
-                        {pendingCount} 处理中
+                        {pendingCount}
                       </span>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ImageGallery
-                    images={images.slice(0, 12)}
+                    images={images.slice(0, 6)}
                     onDeleteImage={deleteImage}
                     onTogglePublic={toggleImagePublic}
                     onEdit={handleEditImage}
