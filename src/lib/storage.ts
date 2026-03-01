@@ -1,4 +1,5 @@
 import { S3Storage } from "coze-coding-dev-sdk";
+import sharp from "sharp";
 
 // 初始化对象存储客户端
 export const storage = new S3Storage({
@@ -8,6 +9,11 @@ export const storage = new S3Storage({
   bucketName: process.env.COZE_BUCKET_NAME,
   region: "cn-beijing",
 });
+
+// 缩略图配置
+const THUMBNAIL_MAX_WIDTH = 400;
+const THUMBNAIL_MAX_HEIGHT = 400;
+const THUMBNAIL_QUALITY = 70;
 
 // 上传 base64 图片到对象存储
 export async function uploadBase64Image(
@@ -47,6 +53,42 @@ export async function uploadBase64Image(
   });
   
   return key;
+}
+
+// 生成缩略图并上传
+export async function generateAndUploadThumbnail(
+  base64Data: string,
+  fileName: string
+): Promise<string> {
+  // 解析 base64 data URL
+  const prefixEnd = base64Data.indexOf(',');
+  if (prefixEnd === -1) {
+    throw new Error('Invalid base64 image format: no comma found');
+  }
+  
+  const base64 = base64Data.substring(prefixEnd + 1);
+  const buffer = Buffer.from(base64, 'base64');
+  
+  // 使用 sharp 生成缩略图
+  const thumbnailBuffer = await sharp(buffer)
+    .resize(THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT, {
+      fit: 'inside', // 保持宽高比，不裁剪
+      withoutEnlargement: true, // 如果原图更小，不放大
+    })
+    .jpeg({
+      quality: THUMBNAIL_QUALITY,
+      mozjpeg: true, // 使用 mozjpeg 获得更好的压缩
+    })
+    .toBuffer();
+  
+  // 上传缩略图到对象存储
+  const thumbnailKey = await storage.uploadFile({
+    fileContent: thumbnailBuffer,
+    fileName: `ai-thumbnails/${fileName}`,
+    contentType: 'image/jpeg',
+  });
+  
+  return thumbnailKey;
 }
 
 // 获取图片的签名 URL

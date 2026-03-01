@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       
       const { data: allImages, error: queryError } = await client
         .from('images')
-        .select('id, prompt, model, provider, image_url, is_public, created_at, config, view_count, like_count, create_count')
+        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count')
         .eq('is_public', true)
         .eq('status', 'completed')
         .not('image_url', 'is', null)
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     // 非随机排序：正常查询
     const { data, error } = await client
       .from('images')
-      .select('id, prompt, model, provider, image_url, is_public, created_at, config, view_count, like_count, create_count')
+      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count')
       .eq('is_public', true)
       .eq('status', 'completed')
       .not('image_url', 'is', null)
@@ -137,6 +137,7 @@ async function processImages(
     model: string;
     provider: string;
     image_url: string | null;
+    thumbnail_url: string | null;
     is_public: boolean;
     created_at: string;
     config: Record<string, unknown> | null;
@@ -183,6 +184,7 @@ async function processImageData(
     model: string;
     provider: string;
     image_url: string | null;
+    thumbnail_url: string | null;
     is_public: boolean;
     created_at: string;
     config: Record<string, unknown> | null;
@@ -218,6 +220,7 @@ async function processImageData(
   const images = await Promise.all((data || []).map(async (img) => {
     let imageUrl = img.image_url;
     let signedUrl: string | undefined;
+    let thumbnailUrl = img.thumbnail_url;
     
     // 如果是 base64，上传到对象存储并更新数据库
     if (imageUrl && isBase64DataUrl(imageUrl)) {
@@ -245,13 +248,28 @@ async function processImageData(
       signedUrl = imageUrl;
     }
     
+    // 获取缩略图签名 URL
+    let thumbnailSignedUrl: string | undefined;
+    if (thumbnailUrl && !thumbnailUrl.startsWith('http')) {
+      try {
+        thumbnailSignedUrl = await getImageUrl(thumbnailUrl);
+      } catch (e) {
+        console.error('Failed to generate thumbnail signed URL:', thumbnailUrl, e);
+      }
+    } else if (thumbnailUrl && thumbnailUrl.startsWith('http')) {
+      thumbnailSignedUrl = thumbnailUrl;
+    }
+    
     // 使用稳定的图片 API URL（便于浏览器缓存）
     const stableUrl = `/api/images/${img.id}/file`;
+    const stableThumbnailUrl = thumbnailUrl ? `/api/images/${img.id}/thumbnail` : stableUrl;
     
     return {
       ...img,
       image_url: stableUrl, // 稳定的 URL，浏览器可缓存
+      thumbnail_url: stableThumbnailUrl, // 缩略图 URL
       original_url: signedUrl || imageUrl, // 原始签名 URL，用于下载
+      original_thumbnail_url: thumbnailSignedUrl, // 缩略图原始签名 URL
       // 统计数据
       stats: {
         views: img.view_count || 0,

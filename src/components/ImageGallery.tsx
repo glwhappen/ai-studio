@@ -212,7 +212,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                   </div>
                 ) : (
                   <img
-                    src={image.image_url}
+                    src={image.thumbnail_url || image.image_url}
                     alt={image.prompt}
                     className="w-full h-auto cursor-pointer transition-transform group-hover:scale-[1.02]"
                     onClick={() => {

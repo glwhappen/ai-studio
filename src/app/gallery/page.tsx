@@ -21,6 +21,7 @@ interface PublicImage {
   model: string;
   provider: string;
   image_url: string;
+  thumbnail_url?: string;
   original_url?: string;
   created_at: string;
   config: Record<string, unknown> | null;
@@ -560,7 +561,7 @@ function GalleryContent() {
                           </div>
                         ) : (
                           <img
-                            src={image.image_url}
+                            src={image.thumbnail_url || image.image_url}
                             alt={image.prompt}
                             className="w-full h-auto transition-transform group-hover:scale-[1.02]"
                             onError={() => handleImageError(image.id)}

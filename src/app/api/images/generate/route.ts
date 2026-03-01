@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { uploadBase64Image, isBase64DataUrl, getImageUrl } from '@/lib/storage';
+import { uploadBase64Image, isBase64DataUrl, getImageUrl, generateAndUploadThumbnail } from '@/lib/storage';
 import type { ApiProvider } from '@/types';
 
 interface GenerateRequest {
@@ -135,10 +135,22 @@ async function generateImageAsync(
     if (imageUrl) {
       // 如果是 base64 data URL，上传到对象存储
       let storedUrl = imageUrl;
+      let thumbnailUrl: string | undefined;
+      
       if (isBase64DataUrl(imageUrl)) {
         try {
+          // 上传原图
           const key = await uploadBase64Image(imageUrl, `${imageId}.png`);
           storedUrl = key; // 存储对象存储的 key
+          
+          // 生成并上传缩略图
+          try {
+            const thumbnailKey = await generateAndUploadThumbnail(imageUrl, `${imageId}.jpg`);
+            thumbnailUrl = thumbnailKey;
+          } catch (thumbnailError) {
+            console.error('Failed to generate thumbnail:', thumbnailError);
+            // 缩略图生成失败不影响主流程
+          }
         } catch (uploadError) {
           console.error('Failed to upload image to storage:', uploadError);
           // 上传失败时仍然保存 base64（兜底）
@@ -151,6 +163,7 @@ async function generateImageAsync(
         .update({
           status: 'completed',
           image_url: storedUrl,
+          thumbnail_url: thumbnailUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', imageId);

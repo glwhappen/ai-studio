@@ -31,6 +31,7 @@ export const images = pgTable("images", {
 	provider: varchar("provider", { length: 32 }).notNull(),
 	status: varchar("status", { length: 32 }).notNull().default('pending'),
 	imageUrl: text("image_url"),
+	thumbnailUrl: text("thumbnail_url"),
 	errorMessage: text("error_message"),
 	isPublic: boolean("is_public").notNull().default(false),
 	config: jsonb("config"),
