@@ -614,7 +614,7 @@ function GalleryContent() {
                         
                         {/* 悬停信息层 */}
                         {!hasError && (
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <div className="absolute bottom-0 left-0 right-0 p-3">
                               <p className="text-xs text-white line-clamp-2 mb-2">{image.prompt}</p>
                               
@@ -642,7 +642,7 @@ function GalleryContent() {
                         
                         {/* 提供商标识 */}
                         {!hasError && (
-                          <div className="absolute top-2 left-2 flex items-center gap-1">
+                          <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
                             {image.provider === 'gemini' ? (
                               <div className="bg-primary/80 rounded-full p-1">
                                 <Sparkles className="h-3 w-3 text-white" />
@@ -662,7 +662,7 @@ function GalleryContent() {
                         
                         {/* 点赞/点踩按钮 - 悬停显示 */}
                         {!hasError && userToken && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               className={`p-1.5 rounded-full transition-colors ${
                                 image.userInteraction.has_liked 

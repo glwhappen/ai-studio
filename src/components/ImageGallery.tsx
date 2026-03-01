@@ -272,7 +272,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
               {/* 悬停信息层 - 仅完成的图片且未加载失败 */}
               {image.status === 'completed' && image.image_url && !hasError && (
                 <div 
-                  className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  className="absolute inset-0 z-20 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   onClick={() => {
                     setSelectedImage(image);
                     setIsPreviewOpen(true);
@@ -296,7 +296,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
               
               {/* 状态标识 */}
               {showStatus && image.status !== 'completed' && (
-                <div className="absolute top-2 left-2 bg-background/80 rounded-full px-2 py-1 flex items-center gap-1">
+                <div className="absolute top-2 left-2 z-20 bg-background/80 rounded-full px-2 py-1 flex items-center gap-1">
                   <StatusIcon status={image.status} />
                   <span className="text-xs">{StatusText({ status: image.status })}</span>
                 </div>
@@ -304,7 +304,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
               
               {/* 提供商标识 */}
               {image.status === 'completed' && image.image_url && !hasError && (
-                <div className="absolute top-2 left-2">
+                <div className="absolute top-2 left-2 z-20">
                   {image.provider === 'gemini' ? (
                     <div className="bg-primary/80 rounded-full p-1">
                       <Sparkles className="h-3 w-3 text-white" />
@@ -319,14 +319,14 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
             
             {/* 公开状态标识 */}
             {image.is_public && !hasError && (
-              <div className="absolute top-2 right-10 bg-green-500/80 rounded-full p-1" title="已公开">
+              <div className="absolute top-2 right-10 z-20 bg-green-500/80 rounded-full p-1" title="已公开">
                 <Globe className="h-3 w-3 text-white" />
               </div>
             )}
             
             {/* 操作按钮 */}
             {image.status === 'completed' && image.image_url && !hasError && (
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
