@@ -104,7 +104,7 @@ function GalleryContent() {
   // 分页和排序
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes'>('likes'); // 默认按最多赞排序
+  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes' | 'random'>('random'); // 默认随机排序
   
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -126,6 +126,13 @@ function GalleryContent() {
       localStorage.setItem('ai-image-user-token', newToken);
       setUserToken(newToken);
     }
+    
+    // 读取保存的排序偏好
+    const savedSortBy = localStorage.getItem('gallery-sort-by');
+    if (savedSortBy && ['latest', 'popular', 'likes', 'random'].includes(savedSortBy)) {
+      setSortBy(savedSortBy as typeof sortBy);
+    }
+    
     setIsInitialized(true);
   }, []);
 
@@ -465,11 +472,23 @@ function GalleryContent() {
               </CardTitle>
               
               {/* 排序选择器 */}
-              <Select value={sortBy} onValueChange={(v) => { setSortBy(v as typeof sortBy); setPage(1); }}>
+              <Select value={sortBy} onValueChange={(v) => {
+                const newSort = v as typeof sortBy;
+                setSortBy(newSort);
+                setPage(1);
+                // 保存排序偏好到本地
+                localStorage.setItem('gallery-sort-by', newSort);
+              }}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="random">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      随机
+                    </div>
+                  </SelectItem>
                   <SelectItem value="latest">
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5" />
