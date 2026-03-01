@@ -151,3 +151,14 @@
   animation: shimmer 1.5s infinite;
 }
 
+/* 骨架屏闪烁背景 */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+

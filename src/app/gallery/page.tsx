@@ -79,7 +79,6 @@ function GalleryContent() {
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-  const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set()); // 加载中的图片
   
   // 分页和排序
   const [page, setPage] = useState(1);
@@ -138,19 +137,12 @@ function GalleryContent() {
       const data = await response.json();
       
       if (data.success) {
-        // 初始化新图片的加载状态
-        const newImageIds = data.images.map((img: PublicImage) => img.id);
-        
         if (append) {
           // 追加模式：合并图片列表
           setImages(prev => [...prev, ...data.images]);
-          // 追加新图片到加载状态
-          setLoadingImages(prev => new Set([...prev, ...newImageIds]));
         } else {
           // 替换模式：重置图片列表
           setImages(data.images);
-          // 设置所有图片为加载中
-          setLoadingImages(new Set(newImageIds));
         }
         // 判断是否还有更多
         setHasMore(pageNum < data.pagination.totalPages);
@@ -271,27 +263,8 @@ function GalleryContent() {
     }
   }, [isInitialized, images, searchParams, isPreviewOpen]);
   
-  // 图片开始加载
-  const handleImageLoadStart = (imageId: string) => {
-    setLoadingImages(prev => new Set(prev).add(imageId));
-  };
-  
-  // 图片加载完成
-  const handleImageLoad = (imageId: string) => {
-    setLoadingImages(prev => {
-      const next = new Set(prev);
-      next.delete(imageId);
-      return next;
-    });
-  };
-  
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
-    setLoadingImages(prev => {
-      const next = new Set(prev);
-      next.delete(imageId);
-      return next;
-    });
     setFailedImages(prev => new Set(prev).add(imageId));
   };
   
@@ -302,7 +275,6 @@ function GalleryContent() {
       next.delete(imageId);
       return next;
     });
-    setLoadingImages(prev => new Set(prev).add(imageId));
     setImages(prev => prev.map(img => 
       img.id === imageId 
         ? { ...img, image_url: img.image_url.includes('?') 
@@ -572,7 +544,6 @@ function GalleryContent() {
                 <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
                   {images.map((image) => {
                     const hasError = failedImages.has(image.id);
-                    const isLoading = loadingImages.has(image.id);
                     
                     return (
                       <div
@@ -598,21 +569,32 @@ function GalleryContent() {
                             </Button>
                           </div>
                         ) : (
-                          <div className="relative">
-                            {/* 骨架屏占位符 - 仅在首次加载时显示 */}
-                            <div 
-                              className={`absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-muted transition-opacity duration-300 ${loadingImages.has(image.id) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                            >
-                              <div className="absolute inset-0 overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                              </div>
+                          /* 图片容器 - 使用 CSS 骨架屏背景 */
+                          <div className="relative min-h-[200px] bg-gradient-to-br from-muted via-muted/90 to-muted overflow-hidden">
+                            {/* 骨架屏动画层 */}
+                            <div className="skeleton-shimmer absolute inset-0" />
+                            {/* 图片加载指示器 */}
+                            <div className="skeleton-spinner absolute inset-0 flex items-center justify-center">
+                              <Loader2 className="h-6 w-6 text-muted-foreground/50 animate-spin" />
                             </div>
                             {/* 实际图片 */}
                             <img
                               src={image.thumbnail_url || image.image_url}
                               alt={image.prompt}
-                              className={`w-full h-auto transition-all duration-300 ${loadingImages.has(image.id) ? 'opacity-0' : 'opacity-100'} group-hover:scale-[1.02]`}
-                              onLoad={() => handleImageLoad(image.id)}
+                              className="relative z-10 w-full h-auto opacity-0 transition-opacity duration-500 group-hover:scale-[1.02]"
+                              onLoad={(e) => {
+                                const img = e.currentTarget;
+                                img.classList.remove('opacity-0');
+                                img.classList.add('opacity-100');
+                                // 隐藏骨架屏元素
+                                const parent = img.parentElement;
+                                if (parent) {
+                                  const shimmer = parent.querySelector('.skeleton-shimmer');
+                                  const spinner = parent.querySelector('.skeleton-spinner');
+                                  if (shimmer) shimmer.classList.add('hidden');
+                                  if (spinner) spinner.classList.add('hidden');
+                                }
+                              }}
                               onError={() => handleImageError(image.id)}
                               loading="lazy"
                             />
