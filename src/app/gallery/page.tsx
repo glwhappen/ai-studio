@@ -37,9 +37,6 @@ interface PublicImage {
   };
 }
 
-// 图片加载状态追踪
-const imageLoadStates = new Map<string, 'loading' | 'loaded' | 'error'>();
-
 // 获取尺寸显示文本
 function getSizeText(image: PublicImage): string | null {
   const config = image.config;
@@ -82,6 +79,7 @@ function GalleryContent() {
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set()); // 加载中的图片
   
   // 分页和排序
   const [page, setPage] = useState(1);
@@ -140,12 +138,19 @@ function GalleryContent() {
       const data = await response.json();
       
       if (data.success) {
+        // 初始化新图片的加载状态
+        const newImageIds = data.images.map((img: PublicImage) => img.id);
+        
         if (append) {
           // 追加模式：合并图片列表
           setImages(prev => [...prev, ...data.images]);
+          // 追加新图片到加载状态
+          setLoadingImages(prev => new Set([...prev, ...newImageIds]));
         } else {
           // 替换模式：重置图片列表
           setImages(data.images);
+          // 设置所有图片为加载中
+          setLoadingImages(new Set(newImageIds));
         }
         // 判断是否还有更多
         setHasMore(pageNum < data.pagination.totalPages);
@@ -266,8 +271,27 @@ function GalleryContent() {
     }
   }, [isInitialized, images, searchParams, isPreviewOpen]);
   
+  // 图片开始加载
+  const handleImageLoadStart = (imageId: string) => {
+    setLoadingImages(prev => new Set(prev).add(imageId));
+  };
+  
+  // 图片加载完成
+  const handleImageLoad = (imageId: string) => {
+    setLoadingImages(prev => {
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
+    });
+  };
+  
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
+    setLoadingImages(prev => {
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
+    });
     setFailedImages(prev => new Set(prev).add(imageId));
   };
   
@@ -278,6 +302,7 @@ function GalleryContent() {
       next.delete(imageId);
       return next;
     });
+    setLoadingImages(prev => new Set(prev).add(imageId));
     setImages(prev => prev.map(img => 
       img.id === imageId 
         ? { ...img, image_url: img.image_url.includes('?') 
@@ -547,6 +572,7 @@ function GalleryContent() {
                 <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
                   {images.map((image) => {
                     const hasError = failedImages.has(image.id);
+                    const isLoading = loadingImages.has(image.id);
                     
                     return (
                       <div
@@ -572,13 +598,25 @@ function GalleryContent() {
                             </Button>
                           </div>
                         ) : (
-                          <img
-                            src={image.thumbnail_url || image.image_url}
-                            alt={image.prompt}
-                            className="w-full h-auto transition-transform group-hover:scale-[1.02]"
-                            onError={() => handleImageError(image.id)}
-                            loading="lazy"
-                          />
+                          <div className="relative">
+                            {/* 骨架屏占位符 - 仅在首次加载时显示 */}
+                            <div 
+                              className={`absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-muted transition-opacity duration-300 ${loadingImages.has(image.id) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            >
+                              <div className="absolute inset-0 overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+                              </div>
+                            </div>
+                            {/* 实际图片 */}
+                            <img
+                              src={image.thumbnail_url || image.image_url}
+                              alt={image.prompt}
+                              className={`w-full h-auto transition-all duration-300 ${loadingImages.has(image.id) ? 'opacity-0' : 'opacity-100'} group-hover:scale-[1.02]`}
+                              onLoad={() => handleImageLoad(image.id)}
+                              onError={() => handleImageError(image.id)}
+                              loading="lazy"
+                            />
+                          </div>
                         )}
                         
                         {/* 悬停信息层 */}
