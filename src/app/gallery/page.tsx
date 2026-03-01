@@ -551,46 +551,64 @@ function GalleryContent() {
                 社区精选作品
               </CardTitle>
               
-              {/* 排序选择器 */}
-              <Select value={sortBy} onValueChange={(v) => {
-                const newSort = v as typeof sortBy;
-                setSortBy(newSort);
-                setPage(1);
-                setImages([]); // 清空图片列表
-                setHasMore(true); // 重置 hasMore
-                // 保存排序偏好到本地
-                localStorage.setItem('gallery-sort-by', newSort);
-              }}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="random">
-                    <div className="flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      随机
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="latest">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      最新
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="popular">
-                    <div className="flex items-center gap-1.5">
-                      <Flame className="h-3.5 w-3.5" />
-                      最热
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="likes">
-                    <div className="flex items-center gap-1.5">
-                      <ThumbsUp className="h-3.5 w-3.5" />
-                      最多赞
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              {/* 排序选择器和刷新按钮 */}
+              <div className="flex items-center gap-2">
+                <Select value={sortBy} onValueChange={(v) => {
+                  const newSort = v as typeof sortBy;
+                  setSortBy(newSort);
+                  setPage(1);
+                  setImages([]); // 清空图片列表
+                  setHasMore(true); // 重置 hasMore
+                  // 保存排序偏好到本地
+                  localStorage.setItem('gallery-sort-by', newSort);
+                }}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="random">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        随机
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="latest">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" />
+                        最新
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="popular">
+                      <div className="flex items-center gap-1.5">
+                        <Flame className="h-3.5 w-3.5" />
+                        最热
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="likes">
+                      <div className="flex items-center gap-1.5">
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                        最多赞
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* 刷新按钮 */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => {
+                    setPage(1);
+                    setImages([]);
+                    setHasMore(true);
+                  }}
+                  disabled={isLoading || isLoadingMore}
+                  title="刷新"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
