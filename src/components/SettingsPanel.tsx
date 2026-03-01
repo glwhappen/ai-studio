@@ -96,8 +96,6 @@ export const DEFAULT_PROMPT_LLM_CONFIG: PromptLLMConfig = {
 // 模型信息接口
 export interface ModelInfo {
   id: string;
-  name: string;
-  description?: string;
 }
 
 // 加载提示词模板
@@ -175,6 +173,7 @@ export function SettingsPanel({
   const [llmConfigSaved, setLLMConfigSaved] = useState(false);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   
   // 临时编辑状态（不显示实际的 apiKey）
   const [geminiConfig, setGeminiConfig] = useState({ 
@@ -559,45 +558,71 @@ export function SettingsPanel({
                   
                   <div className="space-y-2">
                     <Label htmlFor="llm-model" className="text-sm">文本模型</Label>
-                    <div className="flex gap-2">
-                      <select
-                        id="llm-model"
-                        value={promptLLMConfig.model}
-                        onChange={(e) => setPromptLLMConfig(prev => ({ 
-                          ...prev, 
-                          model: e.target.value 
-                        }))}
-                        className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        disabled={isLoadingModels}
-                      >
-                        {isLoadingModels ? (
-                          <option value="">加载中...</option>
-                        ) : availableModels.length > 0 ? (
-                          availableModels.map(model => (
-                            <option key={model.id} value={model.id}>
-                              {model.name}{model.description ? ` - ${model.description}` : ''}
-                            </option>
-                          ))
-                        ) : (
-                          <option value={promptLLMConfig.model}>{promptLLMConfig.model}</option>
-                        )}
-                      </select>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => loadModels(promptLLMConfig.baseUrl, promptLLMConfig.apiKey)}
-                        disabled={isLoadingModels}
-                        title="刷新模型列表"
-                      >
-                        {isLoadingModels ? (
-                          <span className="animate-spin">⟳</span>
-                        ) : (
-                          '⟳'
-                        )}
-                      </Button>
+                    <div className="relative">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            id="llm-model"
+                            value={promptLLMConfig.model}
+                            onChange={(e) => setPromptLLMConfig(prev => ({ 
+                              ...prev, 
+                              model: e.target.value 
+                            }))}
+                            onFocus={() => setShowModelDropdown(true)}
+                            onBlur={() => {
+                              // 延迟关闭，允许点击下拉选项
+                              setTimeout(() => setShowModelDropdown(false), 200);
+                            }}
+                            placeholder="输入或选择模型"
+                            className="font-mono text-sm"
+                            disabled={isLoadingModels}
+                          />
+                          {/* 下拉提示列表 */}
+                          {showModelDropdown && availableModels.length > 0 && (
+                            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                              {availableModels
+                                .filter(m => m.id.toLowerCase().includes(promptLLMConfig.model.toLowerCase()))
+                                .slice(0, 15)
+                                .map(model => (
+                                  <div
+                                    key={model.id}
+                                    className="px-3 py-1.5 text-sm cursor-pointer hover:bg-accent truncate"
+                                    onClick={() => {
+                                      setPromptLLMConfig(prev => ({ 
+                                        ...prev, 
+                                        model: model.id 
+                                      }));
+                                      setShowModelDropdown(false);
+                                    }}
+                                  >
+                                    {model.id}
+                                  </div>
+                                ))}
+                              {availableModels.filter(m => m.id.toLowerCase().includes(promptLLMConfig.model.toLowerCase())).length === 0 && (
+                                <div className="px-3 py-1.5 text-sm text-muted-foreground">
+                                  无匹配模型
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadModels(promptLLMConfig.baseUrl, promptLLMConfig.apiKey)}
+                          disabled={isLoadingModels}
+                          title="刷新模型列表"
+                        >
+                          {isLoadingModels ? (
+                            <span className="animate-spin">⟳</span>
+                          ) : (
+                            '⟳'
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      选择用于优化和改写的文本模型，点击刷新按钮重新加载
+                      输入模型名称或从列表中选择，点击刷新按钮获取可用模型
                     </p>
                   </div>
                   
