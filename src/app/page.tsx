@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
-import { SettingsPanel, loadPromptTemplates } from '@/components/SettingsPanel';
+import { SettingsPanel, loadPromptTemplates, loadPromptLLMConfig } from '@/components/SettingsPanel';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ProviderSelector } from '@/components/ProviderSelector';
 import { ModelSelector } from '@/components/ModelSelector';
@@ -245,6 +245,8 @@ function HomeContent() {
           mode: 'enhance',
           enhanceSystemPrompt: templates.enhanceSystemPrompt,
           enhanceUserPrompt: templates.enhanceUserPrompt,
+          // 传递 LLM 配置
+          ...loadPromptLLMConfig(),
         }),
       });
       
@@ -269,6 +271,8 @@ function HomeContent() {
     try {
       // 读取用户自定义模板
       const templates = loadPromptTemplates();
+      // 读取用户 LLM 配置
+      const llmConfig = loadPromptLLMConfig();
       
       const response = await fetch('/api/prompt/enhance', {
         method: 'POST',
@@ -279,6 +283,8 @@ function HomeContent() {
           instruction: rewriteInstruction,
           rewriteSystemPrompt: templates.rewriteSystemPrompt,
           rewriteUserPrompt: templates.rewriteUserPrompt,
+          // 传递 LLM 配置
+          ...llmConfig,
         }),
       });
       

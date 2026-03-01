@@ -60,6 +60,8 @@ const DEFAULT_REWRITE_USER_PROMPT = `请根据以下修改指令改写提示词�
 
 // 提示词模板存储 key
 const PROMPT_TEMPLATES_KEY = 'ai-prompt-templates';
+// 提示词 LLM 配置存储 key
+const PROMPT_LLM_CONFIG_KEY = 'ai-prompt-llm-config';
 
 // 提示词模板接口
 export interface PromptTemplates {
@@ -69,6 +71,13 @@ export interface PromptTemplates {
   rewriteUserPrompt: string;
 }
 
+// 提示词 LLM 配置接口
+export interface PromptLLMConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 // 默认模板
 export const DEFAULT_PROMPT_TEMPLATES: PromptTemplates = {
   enhanceSystemPrompt: DEFAULT_ENHANCE_SYSTEM_PROMPT,
@@ -76,6 +85,24 @@ export const DEFAULT_PROMPT_TEMPLATES: PromptTemplates = {
   rewriteSystemPrompt: DEFAULT_REWRITE_SYSTEM_PROMPT,
   rewriteUserPrompt: DEFAULT_REWRITE_USER_PROMPT,
 };
+
+// 默认 LLM 配置
+export const DEFAULT_PROMPT_LLM_CONFIG: PromptLLMConfig = {
+  baseUrl: 'https://ai.nflow.red',
+  apiKey: '',
+  model: 'gpt-4o-mini',
+};
+
+// 可用的文本模型列表
+export const AVAILABLE_TEXT_MODELS = [
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: '快速、经济' },
+  { id: 'gpt-4o', name: 'GPT-4o', description: '更智能' },
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: '经典模型' },
+  { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: '快速响应' },
+  { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: '平衡' },
+  { id: 'doubao-seed-1-6-flash-250615', name: '豆包 Flash', description: '国产快速' },
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', description: '国产智能' },
+];
 
 // 加载提示词模板
 export function loadPromptTemplates(): PromptTemplates {
@@ -97,6 +124,28 @@ export function loadPromptTemplates(): PromptTemplates {
 export function savePromptTemplates(templates: PromptTemplates): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(PROMPT_TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+// 加载提示词 LLM 配置
+export function loadPromptLLMConfig(): PromptLLMConfig {
+  if (typeof window === 'undefined') return DEFAULT_PROMPT_LLM_CONFIG;
+  
+  try {
+    const stored = localStorage.getItem(PROMPT_LLM_CONFIG_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...DEFAULT_PROMPT_LLM_CONFIG, ...parsed };
+    }
+  } catch (e) {
+    console.error('Failed to load prompt LLM config:', e);
+  }
+  return DEFAULT_PROMPT_LLM_CONFIG;
+}
+
+// 保存提示词 LLM 配置
+export function savePromptLLMConfig(config: PromptLLMConfig): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(PROMPT_LLM_CONFIG_KEY, JSON.stringify(config));
 }
 
 interface SettingsPanelProps {
@@ -125,6 +174,10 @@ export function SettingsPanel({
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplates>(DEFAULT_PROMPT_TEMPLATES);
   const [templatesSaved, setTemplatesSaved] = useState(false);
   
+  // 提示词 LLM 配置状态
+  const [promptLLMConfig, setPromptLLMConfig] = useState<PromptLLMConfig>(DEFAULT_PROMPT_LLM_CONFIG);
+  const [llmConfigSaved, setLLMConfigSaved] = useState(false);
+  
   // 临时编辑状态（不显示实际的 apiKey）
   const [geminiConfig, setGeminiConfig] = useState({ 
     ...apiConfig.providers.gemini, 
@@ -145,6 +198,9 @@ export function SettingsPanel({
       // 加载提示词模板
       setPromptTemplates(loadPromptTemplates());
       setTemplatesSaved(false);
+      // 加载提示词 LLM 配置
+      setPromptLLMConfig(loadPromptLLMConfig());
+      setLLMConfigSaved(false);
     }
     setIsOpen(open);
   };
@@ -159,6 +215,18 @@ export function SettingsPanel({
   // 重置提示词模板
   const handleResetTemplates = () => {
     setPromptTemplates(DEFAULT_PROMPT_TEMPLATES);
+  };
+  
+  // 保存提示词 LLM 配置
+  const handleSaveLLMConfig = () => {
+    savePromptLLMConfig(promptLLMConfig);
+    setLLMConfigSaved(true);
+    setTimeout(() => setLLMConfigSaved(false), 2000);
+  };
+  
+  // 重置提示词 LLM 配置
+  const handleResetLLMConfig = () => {
+    setPromptLLMConfig(DEFAULT_PROMPT_LLM_CONFIG);
   };
   
   // 复制用户 token
@@ -421,6 +489,99 @@ export function SettingsPanel({
           {/* 提示词模板配置 */}
           <TabsContent value="prompts" className="pt-4">
             <div className="space-y-6">
+              {/* LLM 配置 */}
+              <div className="space-y-4 pb-4 border-b">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  <Label>模型配置</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  配置用于提示词优化的 AI 模型。留空 API Key 则使用内置服务。
+                </p>
+                
+                <div className="grid gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-baseUrl" className="text-sm">Base URL</Label>
+                    <Input
+                      id="llm-baseUrl"
+                      placeholder={DEFAULT_PROMPT_LLM_CONFIG.baseUrl}
+                      value={promptLLMConfig.baseUrl}
+                      onChange={(e) => setPromptLLMConfig(prev => ({ 
+                        ...prev, 
+                        baseUrl: e.target.value 
+                      }))}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      留空使用默认地址
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-apiKey" className="text-sm">API Key</Label>
+                    <Input
+                      id="llm-apiKey"
+                      type="password"
+                      placeholder="留空使用内置密钥"
+                      value={promptLLMConfig.apiKey}
+                      onChange={(e) => setPromptLLMConfig(prev => ({ 
+                        ...prev, 
+                        apiKey: e.target.value 
+                      }))}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      可选，留空使用内置服务
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-model" className="text-sm">文本模型</Label>
+                    <select
+                      id="llm-model"
+                      value={promptLLMConfig.model}
+                      onChange={(e) => setPromptLLMConfig(prev => ({ 
+                        ...prev, 
+                        model: e.target.value 
+                      }))}
+                      className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {AVAILABLE_TEXT_MODELS.map(model => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} - {model.description}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      选择用于优化和改写的文本模型
+                    </p>
+                  </div>
+                  
+                  <div className="flex justify-between pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleResetLLMConfig}
+                    >
+                      恢复默认
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={handleSaveLLMConfig}
+                    >
+                      {llmConfigSaved ? (
+                        <>
+                          <Check className="h-4 w-4 mr-1 text-green-500" />
+                          已保存
+                        </>
+                      ) : (
+                        '保存配置'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Wand2 className="h-4 w-4 text-muted-foreground" />
