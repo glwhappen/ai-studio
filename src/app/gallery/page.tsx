@@ -8,6 +8,7 @@ import { ImageViewer } from '@/components/ImageViewer';
 import { ImagePreviewPanel, type PreviewImageInfo } from '@/components/ImagePreviewPanel';
 import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock, Share2 } from 'lucide-react';
 import Link from 'next/link';
+import Masonry from 'react-masonry-css';
 import {
   Select,
   SelectContent,
@@ -563,15 +564,26 @@ function GalleryContent() {
               </div>
             ) : (
               <>
-                {/* 瀑布流图片展示 */}
-                <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 space-y-3">
+                {/* 瀑布流图片展示 - 使用 react-masonry-css 避免加载更多时图片位置变化 */}
+                <Masonry
+                  breakpointCols={{
+                    default: 5,
+                    1536: 4,
+                    1280: 4,
+                    1024: 3,
+                    768: 2,
+                    480: 2
+                  }}
+                  className="flex w-auto -ml-3"
+                  columnClassName="pl-3 bg-clip-padding"
+                >
                   {images.map((image) => {
                     const hasError = failedImages.has(image.id);
                     
                     return (
                       <div
                         key={image.id}
-                        className="group relative overflow-hidden rounded-xl bg-muted break-inside-avoid cursor-pointer"
+                        className="group relative overflow-hidden rounded-xl bg-muted cursor-pointer mb-3"
                         onClick={() => !hasError && handleOpenPreview(image)}
                       >
                         {hasError ? (
@@ -675,16 +687,17 @@ function GalleryContent() {
                           </div>
                         )}
                         
-                        {/* 点赞/点踩按钮 - 悬停显示 */}
+                        {/* 点赞/点踩按钮 - 移动端始终显示，桌面端悬停显示 */}
                         {!hasError && userToken && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button
                               className={`p-1.5 rounded-full transition-colors ${
                                 image.userInteraction.has_liked 
                                   ? 'bg-green-500 text-white' 
-                                  : 'bg-black/50 text-white/70 hover:bg-black/70'
+                                  : 'bg-black/50 text-white/70 hover:bg-black/70 active:bg-black/80'
                               }`}
                               onClick={(e) => handleLike(image, e)}
+                              onTouchEnd={(e) => e.stopPropagation()}
                             >
                               <ThumbsUp className="h-3 w-3" />
                             </button>
@@ -692,9 +705,10 @@ function GalleryContent() {
                               className={`p-1.5 rounded-full transition-colors ${
                                 image.userInteraction.has_disliked 
                                   ? 'bg-red-500 text-white' 
-                                  : 'bg-black/50 text-white/70 hover:bg-black/70'
+                                  : 'bg-black/50 text-white/70 hover:bg-black/70 active:bg-black/80'
                               }`}
                               onClick={(e) => handleDislike(image, e)}
+                              onTouchEnd={(e) => e.stopPropagation()}
                             >
                               <ThumbsDown className="h-3 w-3" />
                             </button>
@@ -703,7 +717,7 @@ function GalleryContent() {
                       </div>
                     );
                   })}
-                </div>
+                </Masonry>
 
                 {/* 无限滚动加载指示器 */}
                 <div 
