@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppState } from '@/hooks/useAppState';
-import { SettingsPanel } from '@/components/SettingsPanel';
+import { SettingsPanel, loadPromptTemplates } from '@/components/SettingsPanel';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ProviderSelector } from '@/components/ProviderSelector';
 import { ModelSelector } from '@/components/ModelSelector';
@@ -162,10 +162,18 @@ function HomeContent() {
     
     setIsEnhancing(true);
     try {
+      // 读取用户自定义模板
+      const templates = loadPromptTemplates();
+      
       const response = await fetch('/api/prompt/enhance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, mode: 'enhance' }),
+        body: JSON.stringify({ 
+          prompt, 
+          mode: 'enhance',
+          enhanceSystemPrompt: templates.enhanceSystemPrompt,
+          enhanceUserPrompt: templates.enhanceUserPrompt,
+        }),
       });
       
       const data = await response.json();
@@ -187,13 +195,18 @@ function HomeContent() {
     
     setIsRewriting(true);
     try {
+      // 读取用户自定义模板
+      const templates = loadPromptTemplates();
+      
       const response = await fetch('/api/prompt/enhance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           prompt, 
           mode: 'rewrite', 
-          instruction: rewriteInstruction 
+          instruction: rewriteInstruction,
+          rewriteSystemPrompt: templates.rewriteSystemPrompt,
+          rewriteUserPrompt: templates.rewriteUserPrompt,
         }),
       });
       
