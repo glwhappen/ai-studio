@@ -193,23 +193,59 @@ function GalleryContent() {
     }
   }, [page, sortBy, fetchGallery]);
   
-  // 无限滚动：使用 Intersection Observer
+  // 无限滚动：滚动到底部时自动加载
+  const loadingTriggeredRef = useRef(false);
+  
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMore || isLoadingMore) return;
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMore) return;
     
+    const handleLoadMore = () => {
+      // 防止重复触发
+      if (loadingTriggeredRef.current || isLoadingMore || isLoading) return;
+      
+      const rect = sentinel.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      
+      // 当 sentinel 距离视口底部 400px 以内时触发加载
+      if (rect.top < windowHeight + 400) {
+        loadingTriggeredRef.current = true;
+        setPage(prev => prev + 1);
+      }
+    };
+    
+    // 使用 Intersection Observer
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-          setPage(prev => prev + 1);
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { 
+        threshold: 0, 
+        rootMargin: '400px'
+      }
     );
     
-    observer.observe(loadMoreRef.current);
+    observer.observe(sentinel);
     
-    return () => observer.disconnect();
-  }, [hasMore, isLoadingMore]);
+    // 同时监听 scroll 事件作为备选
+    window.addEventListener('scroll', handleLoadMore, { passive: true });
+    // 初始检查一次
+    handleLoadMore();
+    
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', handleLoadMore);
+    };
+  }, [hasMore, isLoadingMore, isLoading]);
+  
+  // 当加载完成后重置触发标记
+  useEffect(() => {
+    if (!isLoadingMore && !isLoading) {
+      loadingTriggeredRef.current = false;
+    }
+  }, [isLoadingMore, isLoading]);
   
   // 更新 URL（打开/关闭图片时）
   const updateUrl = useCallback((imageId: string | null) => {
@@ -693,12 +729,18 @@ function GalleryContent() {
                 </div>
 
                 {/* 无限滚动加载指示器 */}
-                <div ref={loadMoreRef} className="flex items-center justify-center py-8">
+                <div 
+                  ref={loadMoreRef} 
+                  className="flex items-center justify-center min-h-[60px] py-4"
+                >
                   {isLoadingMore && (
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-sm">加载中...</span>
+                    </div>
                   )}
-                  {!hasMore && images.length > 0 && (
-                    <span className="text-sm text-muted-foreground">没有更多了</span>
+                  {!hasMore && images.length > 0 && !isLoadingMore && (
+                    <span className="text-sm text-muted-foreground">— 没有更多了 —</span>
                   )}
                 </div>
               </>
