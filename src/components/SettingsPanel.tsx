@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,19 +90,15 @@ export const DEFAULT_PROMPT_TEMPLATES: PromptTemplates = {
 export const DEFAULT_PROMPT_LLM_CONFIG: PromptLLMConfig = {
   baseUrl: 'https://ai.nflow.red',
   apiKey: '',
-  model: 'gpt-4o-mini',
+  model: 'gpt-5',
 };
 
-// 可用的文本模型列表
-export const AVAILABLE_TEXT_MODELS = [
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: '快速、经济' },
-  { id: 'gpt-4o', name: 'GPT-4o', description: '更智能' },
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: '经典模型' },
-  { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: '快速响应' },
-  { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: '平衡' },
-  { id: 'doubao-seed-1-6-flash-250615', name: '豆包 Flash', description: '国产快速' },
-  { id: 'deepseek-chat', name: 'DeepSeek Chat', description: '国产智能' },
-];
+// 模型信息接口
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 // 加载提示词模板
 export function loadPromptTemplates(): PromptTemplates {
@@ -177,6 +173,8 @@ export function SettingsPanel({
   // 提示词 LLM 配置状态
   const [promptLLMConfig, setPromptLLMConfig] = useState<PromptLLMConfig>(DEFAULT_PROMPT_LLM_CONFIG);
   const [llmConfigSaved, setLLMConfigSaved] = useState(false);
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
   
   // 临时编辑状态（不显示实际的 apiKey）
   const [geminiConfig, setGeminiConfig] = useState({ 
@@ -187,6 +185,27 @@ export function SettingsPanel({
     ...apiConfig.providers.openai, 
     apiKey: '' // 始终显示为空
   });
+
+  // 加载模型列表
+  const loadModels = useCallback(async (baseUrl: string, apiKey: string) => {
+    setIsLoadingModels(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('baseUrl', baseUrl);
+      if (apiKey) params.set('apiKey', apiKey);
+      
+      const response = await fetch(`/api/models?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.models && data.models.length > 0) {
+        setAvailableModels(data.models);
+      }
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, []);
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
@@ -199,8 +218,11 @@ export function SettingsPanel({
       setPromptTemplates(loadPromptTemplates());
       setTemplatesSaved(false);
       // 加载提示词 LLM 配置
-      setPromptLLMConfig(loadPromptLLMConfig());
+      const llmConfig = loadPromptLLMConfig();
+      setPromptLLMConfig(llmConfig);
       setLLMConfigSaved(false);
+      // 加载模型列表
+      loadModels(llmConfig.baseUrl, llmConfig.apiKey);
     }
     setIsOpen(open);
   };
@@ -537,23 +559,45 @@ export function SettingsPanel({
                   
                   <div className="space-y-2">
                     <Label htmlFor="llm-model" className="text-sm">文本模型</Label>
-                    <select
-                      id="llm-model"
-                      value={promptLLMConfig.model}
-                      onChange={(e) => setPromptLLMConfig(prev => ({ 
-                        ...prev, 
-                        model: e.target.value 
-                      }))}
-                      className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      {AVAILABLE_TEXT_MODELS.map(model => (
-                        <option key={model.id} value={model.id}>
-                          {model.name} - {model.description}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        id="llm-model"
+                        value={promptLLMConfig.model}
+                        onChange={(e) => setPromptLLMConfig(prev => ({ 
+                          ...prev, 
+                          model: e.target.value 
+                        }))}
+                        className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        disabled={isLoadingModels}
+                      >
+                        {isLoadingModels ? (
+                          <option value="">加载中...</option>
+                        ) : availableModels.length > 0 ? (
+                          availableModels.map(model => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}{model.description ? ` - ${model.description}` : ''}
+                            </option>
+                          ))
+                        ) : (
+                          <option value={promptLLMConfig.model}>{promptLLMConfig.model}</option>
+                        )}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadModels(promptLLMConfig.baseUrl, promptLLMConfig.apiKey)}
+                        disabled={isLoadingModels}
+                        title="刷新模型列表"
+                      >
+                        {isLoadingModels ? (
+                          <span className="animate-spin">⟳</span>
+                        ) : (
+                          '⟳'
+                        )}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      选择用于优化和改写的文本模型
+                      选择用于优化和改写的文本模型，点击刷新按钮重新加载
                     </p>
                   </div>
                   
