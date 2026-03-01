@@ -65,14 +65,19 @@ function HomeContent() {
   // 提示词历史记录（用于撤销/重做）
   const [promptHistory, setPromptHistory] = useState<string[]>(['']);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const isHistoryUpdate = useRef(false);
+  const skipHistoryRef = useRef(false);
 
   // 更新提示词并记录历史
   const updatePromptWithHistory = useCallback((newPrompt: string) => {
-    if (isHistoryUpdate.current) {
-      isHistoryUpdate.current = false;
+    // 始终更新 prompt 值
+    setPrompt(newPrompt);
+    
+    // 如果标记跳过历史记录，则只更新值不记录历史
+    if (skipHistoryRef.current) {
+      skipHistoryRef.current = false;
       return;
     }
+    
     // 只有内容真正变化时才记录
     if (newPrompt !== promptHistory[historyIndex]) {
       // 截断后面的历史
@@ -84,7 +89,6 @@ function HomeContent() {
       setPromptHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
     }
-    setPrompt(newPrompt);
   }, [promptHistory, historyIndex]);
 
   // 撤销
@@ -92,7 +96,7 @@ function HomeContent() {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      isHistoryUpdate.current = true;
+      skipHistoryRef.current = true;
       setPrompt(promptHistory[newIndex]);
     }
   }, [historyIndex, promptHistory]);
@@ -102,7 +106,7 @@ function HomeContent() {
     if (historyIndex < promptHistory.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      isHistoryUpdate.current = true;
+      skipHistoryRef.current = true;
       setPrompt(promptHistory[newIndex]);
     }
   }, [historyIndex, promptHistory]);
@@ -143,7 +147,7 @@ function HomeContent() {
     
     if (promptParam) {
       // 使用 ref 标记这是历史更新，避免重复记录
-      isHistoryUpdate.current = true;
+      skipHistoryRef.current = true;
       setPrompt(promptParam);
       // 重置历史记录
       setPromptHistory(['', promptParam]);
@@ -295,7 +299,7 @@ function HomeContent() {
 
   // 清空提示词
   const handleClearPrompt = () => {
-    isHistoryUpdate.current = true;
+    skipHistoryRef.current = true;
     setPrompt('');
     setPromptHistory(['']);
     setHistoryIndex(0);
@@ -318,7 +322,7 @@ function HomeContent() {
 
     try {
       await submitGeneration(prompt.trim(), useReferenceImage ? referenceImage : null);
-      isHistoryUpdate.current = true;
+      skipHistoryRef.current = true;
       setPrompt('');
       setPromptHistory(['']);
       setHistoryIndex(0);
@@ -343,7 +347,7 @@ function HomeContent() {
     config?: Record<string, unknown> | null;
   }) => {
     // 直接设置状态
-    isHistoryUpdate.current = true;
+    skipHistoryRef.current = true;
     setPrompt(image.prompt);
     setPromptHistory(['', image.prompt]);
     setHistoryIndex(1);
