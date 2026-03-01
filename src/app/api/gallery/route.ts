@@ -112,13 +112,36 @@ export async function GET(request: NextRequest) {
       const fetchLimit = Math.min(totalCount, 500);
       
       // 获取图片数据（包含点赞数和尺寸）
-      const { data: allImages, error: queryError } = await client
+      // 先尝试查询包含 width/height 列的数据，如果列不存在则回退
+      let allImages = null;
+      let queryError = null;
+      
+      // 尝试查询包含尺寸信息
+      const { data: dataWithDims, error: errorWithDims } = await client
         .from('images')
         .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, width, height')
         .eq('is_public', true)
         .eq('status', 'completed')
         .not('image_url', 'is', null)
         .limit(fetchLimit);
+      
+      if (errorWithDims && errorWithDims.code === '42703') {
+        // 列不存在，回退到不查询 width/height
+        console.log('width/height columns not exist, falling back to basic query');
+        const { data: dataBasic, error: errorBasic } = await client
+          .from('images')
+          .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
+          .eq('is_public', true)
+          .eq('status', 'completed')
+          .not('image_url', 'is', null)
+          .limit(fetchLimit);
+        
+        allImages = dataBasic;
+        queryError = errorBasic;
+      } else {
+        allImages = dataWithDims;
+        queryError = errorWithDims;
+      }
       
       if (queryError) throw queryError;
       
@@ -141,7 +164,11 @@ export async function GET(request: NextRequest) {
     }
     
     // 非随机排序：正常查询
-    const { data, error } = await client
+    // 先尝试查询包含 width/height 列的数据，如果列不存在则回退
+    let data = null;
+    let error = null;
+    
+    const { data: dataWithDims, error: errorWithDims } = await client
       .from('images')
       .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, width, height')
       .eq('is_public', true)
@@ -149,6 +176,25 @@ export async function GET(request: NextRequest) {
       .not('image_url', 'is', null)
       .order(orderBy, { ascending: orderAscending })
       .range(offset, offset + limit - 1);
+    
+    if (errorWithDims && errorWithDims.code === '42703') {
+      // 列不存在，回退到不查询 width/height
+      console.log('width/height columns not exist, falling back to basic query');
+      const { data: dataBasic, error: errorBasic } = await client
+        .from('images')
+        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
+        .eq('is_public', true)
+        .eq('status', 'completed')
+        .not('image_url', 'is', null)
+        .order(orderBy, { ascending: orderAscending })
+        .range(offset, offset + limit - 1);
+      
+      data = dataBasic;
+      error = errorBasic;
+    } else {
+      data = dataWithDims;
+      error = errorWithDims;
+    }
     
     if (error) {
       throw error;
@@ -180,8 +226,8 @@ async function processImages(
     like_count: number | null;
     create_count: number | null;
     dislike_count: number | null;
-    width: number | null;
-    height: number | null;
+    width?: number | null;
+    height?: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null,
@@ -230,8 +276,8 @@ async function processImageData(
     like_count: number | null;
     create_count: number | null;
     dislike_count: number | null;
-    width: number | null;
-    height: number | null;
+    width?: number | null;
+    height?: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null
