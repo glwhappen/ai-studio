@@ -12,6 +12,55 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
+// 加权随机选择（点赞多概率高，点踩多概率低）
+function weightedRandomSelect<T extends { id: string; like_count: number | null; dislike_count?: number | null }>(
+  items: T[],
+  count: number
+): T[] {
+  if (items.length <= count) return items;
+  
+  // 计算每项的权重
+  // 基础权重 = 1
+  // 点赞权重 = like_count * 0.1（每个点赞增加 10% 权重）
+  // 点踩权重 = dislike_count * 0.2（每个点踩减少 20% 权重）
+  // 最小权重 = 0.1（保证有点踩的图片仍有机会被选中）
+  const weights = items.map(item => {
+    const baseWeight = 1;
+    const likeBonus = (item.like_count || 0) * 0.1;
+    const dislikePenalty = (item.dislike_count || 0) * 0.2;
+    return Math.max(0.1, baseWeight + likeBonus - dislikePenalty);
+  });
+  
+  // 计算总权重
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  
+  // 加权随机选择（不放回）
+  const selected: T[] = [];
+  const remaining = [...items];
+  const remainingWeights = [...weights];
+  
+  while (selected.length < count && remaining.length > 0) {
+    // 计算剩余项的总权重
+    const currentTotal = remainingWeights.reduce((sum, w) => sum + w, 0);
+    
+    // 生成随机数
+    let random = Math.random() * currentTotal;
+    
+    // 找到对应的项
+    for (let i = 0; i < remaining.length; i++) {
+      random -= remainingWeights[i];
+      if (random <= 0) {
+        selected.push(remaining[i]);
+        remaining.splice(i, 1);
+        remainingWeights.splice(i, 1);
+        break;
+      }
+    }
+  }
+  
+  return selected;
+}
+
 // 获取公开作品集
 export async function GET(request: NextRequest) {
   try {
@@ -45,22 +94,8 @@ export async function GET(request: NextRequest) {
         break;
     }
     
-    // 随机排序：尝试使用数据库函数，失败则用应用层洗牌
+    // 随机排序：使用加权随机（点赞多概率高，点踩多概率低）
     if (useRandom) {
-      // 尝试使用数据库随机函数
-      const { data: rpcData, error: rpcError } = await client.rpc('get_random_images', {
-        p_limit: limit,
-        p_offset: offset,
-      });
-      
-      if (!rpcError && rpcData) {
-        // 数据库函数成功，直接返回
-        return await processImages(rpcData, client, userToken, page, limit);
-      }
-      
-      // 数据库函数不存在，使用应用层随机
-      console.log('Random RPC not available, using app-level shuffle');
-      
       // 获取总数
       const { count } = await client
         .from('images')
@@ -72,13 +107,14 @@ export async function GET(request: NextRequest) {
       const totalCount = count || 0;
       const totalPages = Math.ceil(totalCount / limit);
       
-      // 对于随机排序，获取所有符合条件的图片 ID，然后随机选择
+      // 获取图片及其点赞/点踩数
       // 为了性能，如果总数太大，只获取一个较大的子集
-      const fetchLimit = Math.min(totalCount, 500); // 最多获取 500 条进行随机
+      const fetchLimit = Math.min(totalCount, 500);
       
+      // 获取图片数据（包含点赞数）
       const { data: allImages, error: queryError } = await client
         .from('images')
-        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count')
+        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
         .eq('is_public', true)
         .eq('status', 'completed')
         .not('image_url', 'is', null)
@@ -86,12 +122,11 @@ export async function GET(request: NextRequest) {
       
       if (queryError) throw queryError;
       
-      // 洗牌并取当前页
-      const shuffled = shuffleArray(allImages || []);
-      const pageData = shuffled.slice(offset, offset + limit);
+      // 使用加权随机选择
+      const selectedImages = weightedRandomSelect(allImages || [], limit);
       
       // 处理图片数据
-      const images = await processImageData(pageData, client, userToken);
+      const images = await processImageData(selectedImages, client, userToken);
       
       return NextResponse.json({
         success: true,
@@ -108,7 +143,7 @@ export async function GET(request: NextRequest) {
     // 非随机排序：正常查询
     const { data, error } = await client
       .from('images')
-      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count')
+      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
       .eq('is_public', true)
       .eq('status', 'completed')
       .not('image_url', 'is', null)
@@ -144,6 +179,7 @@ async function processImages(
     view_count: number | null;
     like_count: number | null;
     create_count: number | null;
+    dislike_count: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null,
@@ -191,6 +227,7 @@ async function processImageData(
     view_count: number | null;
     like_count: number | null;
     create_count: number | null;
+    dislike_count: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null
@@ -275,6 +312,7 @@ async function processImageData(
         views: img.view_count || 0,
         likes: img.like_count || 0,
         creates: img.create_count || 0,
+        dislikes: img.dislike_count || 0,
       },
       // 用户交互状态
       userInteraction: userInteractions[img.id] || {
