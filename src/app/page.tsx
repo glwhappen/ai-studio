@@ -473,243 +473,217 @@ function HomeContent() {
 
           {/* 创作工作台 */}
           <TabsContent value="create">
-            {/* 电脑端：三栏布局 - 左侧配置 | 中间创作 | 右侧作品 */}
-            {/* 平板/手机：单栏布局 */}
-            <div className="grid lg:grid-cols-[240px_1fr_1fr] xl:grid-cols-[280px_1fr_1.2fr] gap-4 lg:gap-6">
-              
-              {/* 左侧：配置选项（电脑端侧边栏） */}
-              <Card className="lg:h-fit lg:sticky lg:top-20">
-                <CardHeader className="pb-3 lg:hidden">
-                  <CardTitle className="font-serif flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    创作配置
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 lg:p-5">
-                  <div className="space-y-4">
-                    {/* 供应商选择器 */}
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">供应商</Label>
-                      <ProviderSelector
-                        currentProvider={currentProvider}
-                        onProviderChange={switchProvider}
-                      />
-                    </div>
+            <div className="space-y-6">
+              {/* 上半部分：配置 + 创作（电脑端左右两栏，手机端单栏） */}
+              <div className="grid lg:grid-cols-[280px_1fr] gap-4 lg:gap-6">
+                
+                {/* 左侧：配置选项 */}
+                <Card className="lg:h-fit lg:sticky lg:top-20">
+                  <CardHeader className="pb-3 lg:hidden">
+                    <CardTitle className="font-serif flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      创作配置
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 lg:p-5">
+                    <div className="space-y-4">
+                      {/* 供应商选择器 */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">供应商</Label>
+                        <ProviderSelector
+                          currentProvider={currentProvider}
+                          onProviderChange={switchProvider}
+                        />
+                      </div>
 
-                    {/* 模型选择 */}
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">模型</Label>
-                      <ModelSelector
-                        apiConfig={apiConfig}
-                        selectedModel={apiConfig.selectedModel}
-                        currentProvider={currentProvider}
-                        currentProviderConfig={currentProviderConfig}
-                        onModelChange={handleModelChange}
-                      />
-                    </div>
+                      {/* 模型选择 */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">模型</Label>
+                        <ModelSelector
+                          apiConfig={apiConfig}
+                          selectedModel={apiConfig.selectedModel}
+                          currentProvider={currentProvider}
+                          currentProviderConfig={currentProviderConfig}
+                          onModelChange={handleModelChange}
+                        />
+                      </div>
 
-                    {/* 尺寸选择 */}
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">图片尺寸</Label>
-                      <SizeSelector
-                        provider={currentProvider}
-                        aspectRatio={apiConfig.aspectRatio}
-                        imageSize={apiConfig.imageSize}
-                        openaiSize={apiConfig.openaiSize}
-                        useCustomSize={apiConfig.useCustomSize}
-                        apiKey={currentProviderConfig.apiKey}
-                        onSizeChange={handleSizeChange}
-                      />
+                      {/* 尺寸选择 */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">图片尺寸</Label>
+                        <SizeSelector
+                          provider={currentProvider}
+                          aspectRatio={apiConfig.aspectRatio}
+                          imageSize={apiConfig.imageSize}
+                          openaiSize={apiConfig.openaiSize}
+                          useCustomSize={apiConfig.useCustomSize}
+                          apiKey={currentProviderConfig.apiKey}
+                          onSizeChange={handleSizeChange}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* 中间：创作区域 */}
-              <Card className="lg:h-fit lg:sticky lg:top-20">
-                <CardHeader className="pb-3">
-                  <CardTitle className="font-serif flex items-center gap-2">
-                    <Wand2 className="h-5 w-5 text-primary" />
-                    创作提示词
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 lg:p-5">
-                  <div className="space-y-4">
-                    {/* 提示词输入 */}
-                    <div className="space-y-2">
-                      <Textarea
-                        id="prompt"
-                        placeholder="描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"
-                        value={prompt}
-                        onChange={(e) => updatePromptWithHistory(e.target.value)}
-                        className="min-h-[140px] lg:min-h-[180px] resize-none"
-                        disabled={isSubmitting}
-                      />
-                      {/* 提示词操作按钮 */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* 撤销/重做 */}
-                        <div className="flex items-center gap-0.5">
+                {/* 右侧：创作区域 */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="font-serif flex items-center gap-2">
+                      <Wand2 className="h-5 w-5 text-primary" />
+                      创作提示词
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 lg:p-5">
+                    <div className="space-y-4">
+                      {/* 提示词输入 */}
+                      <div className="space-y-2">
+                        <Textarea
+                          id="prompt"
+                          placeholder="描述你想要生成的图片，例如：一只可爱的香蕉在阳光下微笑，水彩画风格"
+                          value={prompt}
+                          onChange={(e) => updatePromptWithHistory(e.target.value)}
+                          className="min-h-[140px] lg:min-h-[160px] resize-none"
+                          disabled={isSubmitting}
+                        />
+                        {/* 提示词操作按钮 */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* 撤销/重做 */}
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={undoPrompt}
+                              disabled={historyIndex <= 0 || isSubmitting}
+                              className="h-7 w-7 p-0"
+                              title="撤销 (Ctrl+Z)"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={redoPrompt}
+                              disabled={historyIndex >= promptHistory.length - 1 || isSubmitting}
+                              className="h-7 w-7 p-0"
+                              title="重做 (Ctrl+Y)"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                              </svg>
+                            </Button>
+                          </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={undoPrompt}
-                            disabled={historyIndex <= 0 || isSubmitting}
-                            className="h-7 w-7 p-0"
-                            title="撤销 (Ctrl+Z)"
+                            onClick={handleClearPrompt}
+                            disabled={!prompt.trim() || isSubmitting}
+                            className="h-7 px-2 text-xs"
                           >
-                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                            </svg>
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            清空
                           </Button>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={redoPrompt}
-                            disabled={historyIndex >= promptHistory.length - 1 || isSubmitting}
-                            className="h-7 w-7 p-0"
-                            title="重做 (Ctrl+Y)"
+                            onClick={handleEnhancePrompt}
+                            disabled={!prompt.trim() || isSubmitting || isEnhancing}
+                            className="h-7 px-2 text-xs"
                           >
-                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-                            </svg>
+                            {isEnhancing ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Wand2 className="h-3 w-3 mr-1" />
+                            )}
+                            AI优化
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsRewriteDialogOpen(true)}
+                            disabled={!prompt.trim() || isSubmitting}
+                            className="h-7 px-2 text-xs"
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            改写
                           </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleClearPrompt}
-                          disabled={!prompt.trim() || isSubmitting}
-                          className="h-7 px-2 text-xs"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          清空
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleEnhancePrompt}
-                          disabled={!prompt.trim() || isSubmitting || isEnhancing}
-                          className="h-7 px-2 text-xs"
-                        >
-                          {isEnhancing ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          ) : (
-                            <Wand2 className="h-3 w-3 mr-1" />
-                          )}
-                          AI优化
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsRewriteDialogOpen(true)}
-                          disabled={!prompt.trim() || isSubmitting}
-                          className="h-7 px-2 text-xs"
-                        >
-                          <Pencil className="h-3 w-3 mr-1" />
-                          改写
-                        </Button>
                       </div>
-                    </div>
 
-                    {/* 参考图片（图生图） */}
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="use-reference"
-                          checked={useReferenceImage}
-                          onCheckedChange={handleUseReferenceImageChange}
-                          disabled={isSubmitting}
-                        />
-                        <Label
-                          htmlFor="use-reference"
-                          className="text-sm cursor-pointer"
-                        >
-                          使用参考图片（图生图）
-                        </Label>
+                      {/* 参考图片（图生图） */}
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="use-reference"
+                            checked={useReferenceImage}
+                            onCheckedChange={handleUseReferenceImageChange}
+                            disabled={isSubmitting}
+                          />
+                          <Label
+                            htmlFor="use-reference"
+                            className="text-sm cursor-pointer"
+                          >
+                            使用参考图片（图生图）
+                          </Label>
+                        </div>
+                        
+                        {useReferenceImage && (
+                          <ReferenceImageUploader
+                            value={referenceImage?.base64 || null}
+                            onChange={handleReferenceImageChange}
+                            disabled={isSubmitting}
+                          />
+                        )}
                       </div>
-                      
-                      {useReferenceImage && (
-                        <ReferenceImageUploader
-                          value={referenceImage?.base64 || null}
-                          onChange={handleReferenceImageChange}
-                          disabled={isSubmitting}
-                        />
+
+                      {/* 处理中提示 */}
+                      {pendingCount > 0 && (
+                        <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                          <Clock className="h-4 w-4 animate-spin" />
+                          有 {pendingCount} 个任务正在处理中...
+                        </div>
                       )}
-                    </div>
 
-                    {/* 处理中提示 */}
-                    {pendingCount > 0 && (
-                      <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                        <Clock className="h-4 w-4 animate-spin" />
-                        有 {pendingCount} 个任务正在处理中...
-                      </div>
-                    )}
-
-                    {error && (
-                      <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-2.5">
-                        {error}
-                      </div>
-                    )}
-
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={isSubmitting || !prompt.trim() || !apiConfig.selectedModel}
-                      className="w-full h-11"
-                      size="lg"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          提交中...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4" />
-                          生成图片
-                        </>
+                      {error && (
+                        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-2.5">
+                          {error}
+                        </div>
                       )}
-                    </Button>
 
-                    <p className="text-xs text-muted-foreground text-center">
-                      提交后图片将后台生成，可在「我的作品」查看进度
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || !prompt.trim() || !apiConfig.selectedModel}
+                        className="w-full h-11"
+                        size="lg"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            提交中...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            生成图片
+                          </>
+                        )}
+                      </Button>
 
-              {/* 右侧：最近作品 */}
-              <Card className="hidden lg:block">
-                <CardHeader className="pb-3">
-                  <CardTitle className="font-serif flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-primary" />
-                    最近作品
-                    {pendingCount > 0 && (
-                      <span className="text-sm font-normal text-muted-foreground ml-auto flex items-center gap-1">
-                        <Clock className="h-3 w-3 animate-spin" />
-                        {pendingCount}
-                      </span>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ImageGallery
-                    images={images.slice(0, 12)}
-                    onDeleteImage={deleteImage}
-                    onTogglePublic={toggleImagePublic}
-                    onEdit={handleEditImage}
-                    showStatus={true}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+                      <p className="text-xs text-muted-foreground text-center">
+                        提交后图片将后台生成，可在「我的作品」查看进度
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-            {/* 手机端：最近作品显示在下方 */}
-            <div className="lg:hidden mt-4">
+              {/* 下半部分：最近作品 */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="font-serif flex items-center gap-2">
@@ -718,14 +692,14 @@ function HomeContent() {
                     {pendingCount > 0 && (
                       <span className="text-sm font-normal text-muted-foreground ml-auto flex items-center gap-1">
                         <Clock className="h-3 w-3 animate-spin" />
-                        {pendingCount}
+                        {pendingCount} 处理中
                       </span>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ImageGallery
-                    images={images.slice(0, 6)}
+                    images={images.slice(0, 12)}
                     onDeleteImage={deleteImage}
                     onTogglePublic={toggleImagePublic}
                     onEdit={handleEditImage}
