@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 
 function HomeContent() {
@@ -220,6 +220,12 @@ function HomeContent() {
             AI 创作室
           </h1>
           <div className="flex items-center gap-2">
+            <Link href="/about">
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                <HelpCircle className="h-4 w-4" />
+                功能介绍
+              </Button>
+            </Link>
             <Link href="/gallery">
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <ExternalLink className="h-4 w-4" />
