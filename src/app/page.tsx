@@ -16,7 +16,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle, Wand2, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 function HomeContent() {
@@ -46,6 +55,12 @@ function HomeContent() {
   const [useReferenceImage, setUseReferenceImage] = useState(false);
   const [referenceImage, setReferenceImage] = useState<{ base64: string; mimeType: string } | null>(null);
   const [activeTab, setActiveTab] = useState('create');
+  
+  // AI优化相关状态
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isRewriteDialogOpen, setIsRewriteDialogOpen] = useState(false);
+  const [rewriteInstruction, setRewriteInstruction] = useState('');
+  const [isRewriting, setIsRewriting] = useState(false);
 
   // 从 URL 参数读取提示词和配置（需要等待 localStorage 状态恢复）
   useEffect(() => {
@@ -139,6 +154,68 @@ function HomeContent() {
     if (!checked) {
       setReferenceImage(null);
     }
+  };
+
+  // AI优化提示词
+  const handleEnhancePrompt = async () => {
+    if (!prompt.trim() || isEnhancing) return;
+    
+    setIsEnhancing(true);
+    try {
+      const response = await fetch('/api/prompt/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, mode: 'enhance' }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setPrompt(data.enhancedPrompt);
+      } else {
+        setError(data.error || '优化失败');
+      }
+    } catch (err) {
+      setError('优化失败，请重试');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  // AI改写提示词
+  const handleRewritePrompt = async () => {
+    if (!prompt.trim() || !rewriteInstruction.trim() || isRewriting) return;
+    
+    setIsRewriting(true);
+    try {
+      const response = await fetch('/api/prompt/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt, 
+          mode: 'rewrite', 
+          instruction: rewriteInstruction 
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setPrompt(data.enhancedPrompt);
+        setIsRewriteDialogOpen(false);
+        setRewriteInstruction('');
+      } else {
+        setError(data.error || '改写失败');
+      }
+    } catch (err) {
+      setError('改写失败，请重试');
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  // 清空提示词
+  const handleClearPrompt = () => {
+    setPrompt('');
+    setError(null);
   };
 
   const handleSubmit = async () => {
@@ -322,6 +399,46 @@ function HomeContent() {
                         className="min-h-[120px] resize-none"
                         disabled={isSubmitting}
                       />
+                      {/* 提示词操作按钮 */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleClearPrompt}
+                          disabled={!prompt.trim() || isSubmitting}
+                          className="gap-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          清空
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleEnhancePrompt}
+                          disabled={!prompt.trim() || isSubmitting || isEnhancing}
+                          className="gap-1"
+                        >
+                          {isEnhancing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Wand2 className="h-3.5 w-3.5" />
+                          )}
+                          AI优化
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsRewriteDialogOpen(true)}
+                          disabled={!prompt.trim() || isSubmitting}
+                          className="gap-1"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          AI改写
+                        </Button>
+                      </div>
                     </div>
 
                     {/* 参考图片（图生图） */}
@@ -448,6 +565,61 @@ function HomeContent() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* AI改写对话框 */}
+      <Dialog open={isRewriteDialogOpen} onOpenChange={setIsRewriteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>AI改写提示词</DialogTitle>
+            <DialogDescription>
+              告诉AI你想要如何修改提示词，例如：把主角换成猫咪、改成油画风格、增加夜景氛围等
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="rewrite-instruction">修改指令</Label>
+              <Input
+                id="rewrite-instruction"
+                placeholder="输入你想要的修改内容..."
+                value={rewriteInstruction}
+                onChange={(e) => setRewriteInstruction(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isRewriting) {
+                    handleRewritePrompt();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsRewriteDialogOpen(false);
+                setRewriteInstruction('');
+              }}
+            >
+              取消
+            </Button>
+            <Button 
+              onClick={handleRewritePrompt}
+              disabled={!rewriteInstruction.trim() || isRewriting}
+            >
+              {isRewriting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  改写中...
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  确认改写
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
