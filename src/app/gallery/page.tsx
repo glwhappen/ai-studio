@@ -97,6 +97,8 @@ function GalleryContent() {
   
   const [images, setImages] = useState<PublicImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -104,7 +106,6 @@ function GalleryContent() {
   
   // 分页和排序
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'likes' | 'random'>('random'); // 默认随机排序
   
   // 用户 token
@@ -114,6 +115,8 @@ function GalleryContent() {
   
   // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
   const isClosingRef = useRef(false);
+  // 底部观察器 ref
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -137,8 +140,13 @@ function GalleryContent() {
     setIsInitialized(true);
   }, []);
 
-  const fetchGallery = useCallback(async (pageNum: number, sort: typeof sortBy) => {
-    setIsLoading(true);
+  const fetchGallery = useCallback(async (pageNum: number, sort: typeof sortBy, append: boolean = false) => {
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
+    
     try {
       const params = new URLSearchParams({
         page: String(pageNum),
@@ -153,20 +161,55 @@ function GalleryContent() {
       const data = await response.json();
       
       if (data.success) {
-        setImages(data.images);
-        setTotalPages(data.pagination.totalPages);
+        if (append) {
+          // 追加模式：合并图片列表
+          setImages(prev => [...prev, ...data.images]);
+        } else {
+          // 替换模式：重置图片列表
+          setImages(data.images);
+        }
+        // 判断是否还有更多
+        setHasMore(pageNum < data.pagination.totalPages);
         setFailedImages(new Set());
       }
     } catch (error) {
       console.error('Failed to fetch gallery:', error);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, [userToken]);
 
+  // 初始加载
   useEffect(() => {
-    fetchGallery(page, sortBy);
+    if (!isInitialized) return;
+    fetchGallery(1, sortBy);
+  }, [isInitialized, sortBy, fetchGallery]);
+  
+  // 加载更多
+  useEffect(() => {
+    if (page > 1) {
+      fetchGallery(page, sortBy, true);
+    }
   }, [page, sortBy, fetchGallery]);
+  
+  // 无限滚动：使用 Intersection Observer
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore || isLoadingMore) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          setPage(prev => prev + 1);
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore]);
   
   // 更新 URL（打开/关闭图片时）
   const updateUrl = useCallback((imageId: string | null) => {
@@ -477,6 +520,8 @@ function GalleryContent() {
                 const newSort = v as typeof sortBy;
                 setSortBy(newSort);
                 setPage(1);
+                setImages([]); // 清空图片列表
+                setHasMore(true); // 重置 hasMore
                 // 保存排序偏好到本地
                 localStorage.setItem('gallery-sort-by', newSort);
               }}>
@@ -647,30 +692,15 @@ function GalleryContent() {
                   })}
                 </div>
 
-                {/* 分页 */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 mt-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 1}
-                      onClick={() => setPage(p => p - 1)}
-                    >
-                      上一页
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {page} / {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === totalPages}
-                      onClick={() => setPage(p => p + 1)}
-                    >
-                      下一页
-                    </Button>
-                  </div>
-                )}
+                {/* 无限滚动加载指示器 */}
+                <div ref={loadMoreRef} className="flex items-center justify-center py-8">
+                  {isLoadingMore && (
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  )}
+                  {!hasMore && images.length > 0 && (
+                    <span className="text-sm text-muted-foreground">没有更多了</span>
+                  )}
+                </div>
               </>
             )}
           </CardContent>
