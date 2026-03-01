@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Check } from 'lucide-react';
+import { Settings, Check, Copy, User, LogIn } from 'lucide-react';
 import type { ApiConfig, ApiProvider, ProviderConfig } from '@/types';
 import { PROVIDER_INFO } from '@/types';
 
@@ -27,12 +27,24 @@ const DEFAULT_CONFIGS: Record<ApiProvider, { baseUrl: string }> = {
 interface SettingsPanelProps {
   apiConfig: ApiConfig;
   autoPublic: boolean;
+  userId: string | null;
   onUpdateProviderConfig: (provider: ApiProvider, config: Partial<ProviderConfig>) => void;
   onUpdateAutoPublic: (autoPublic: boolean) => void;
+  onUpdateUserId?: (userId: string) => void;
 }
 
-export function SettingsPanel({ apiConfig, autoPublic, onUpdateProviderConfig, onUpdateAutoPublic }: SettingsPanelProps) {
+export function SettingsPanel({ 
+  apiConfig, 
+  autoPublic, 
+  userId,
+  onUpdateProviderConfig, 
+  onUpdateAutoPublic,
+  onUpdateUserId 
+}: SettingsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [importToken, setImportToken] = useState('');
+  const [importError, setImportError] = useState('');
   
   // 临时编辑状态（不显示实际的 apiKey）
   const [geminiConfig, setGeminiConfig] = useState({ 
@@ -49,8 +61,49 @@ export function SettingsPanel({ apiConfig, autoPublic, onUpdateProviderConfig, o
       // 打开时重置为空，不显示实际 key
       setGeminiConfig({ ...apiConfig.providers.gemini, apiKey: '' });
       setOpenaiConfig({ ...apiConfig.providers.openai, apiKey: '' });
+      setImportToken('');
+      setImportError('');
     }
     setIsOpen(open);
+  };
+  
+  // 复制用户 token
+  const handleCopyToken = async () => {
+    if (!userId) return;
+    try {
+      await navigator.clipboard.writeText(userId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+  
+  // 导入用户 token（用于在其他设备恢复身份）
+  const handleImportToken = () => {
+    const token = importToken.trim();
+    
+    // 验证 token 格式（64 位十六进制）
+    if (!/^[a-f0-9]{64}$/i.test(token)) {
+      setImportError('无效的 Token 格式，应为 64 位十六进制字符');
+      return;
+    }
+    
+    // 保存到 localStorage
+    localStorage.setItem('ai-image-user-token', token);
+    
+    // 通知父组件更新
+    if (onUpdateUserId) {
+      onUpdateUserId(token);
+    }
+    
+    // 清空输入
+    setImportToken('');
+    setImportError('');
+    
+    // 提示成功
+    alert('身份已恢复，页面将刷新以应用更改');
+    window.location.reload();
   };
 
   const handleSaveProvider = (provider: ApiProvider) => {
@@ -183,19 +236,86 @@ export function SettingsPanel({ apiConfig, autoPublic, onUpdateProviderConfig, o
           </TabsList>
           
           <TabsContent value="preferences" className="pt-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="auto-public">自动公开作品</Label>
-                  <p className="text-xs text-muted-foreground">
-                    生成完成后自动将作品添加到公开作品集
-                  </p>
+            <div className="space-y-6">
+              {/* 用户身份 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <Label>用户身份</Label>
                 </div>
-                <Switch
-                  id="auto-public"
-                  checked={autoPublic}
-                  onCheckedChange={onUpdateAutoPublic}
-                />
+                <p className="text-xs text-muted-foreground">
+                  此 Token 用于标识你的身份，可在不同设备间同步作品。复制后粘贴到其他设备即可恢复身份。
+                </p>
+                
+                {/* 显示当前 token */}
+                <div className="flex gap-2">
+                  <Input
+                    value={userId || ''}
+                    readOnly
+                    className="font-mono text-xs bg-muted/50"
+                    placeholder="加载中..."
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyToken}
+                    title="复制 Token"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                
+                {/* 导入 token */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <LogIn className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm">导入身份</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    在其他设备复制了 Token？粘贴到这里恢复身份。
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={importToken}
+                      onChange={(e) => {
+                        setImportToken(e.target.value);
+                        setImportError('');
+                      }}
+                      placeholder="粘贴 64 位 Token..."
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleImportToken}
+                      disabled={!importToken.trim()}
+                    >
+                      导入
+                    </Button>
+                  </div>
+                  {importError && (
+                    <p className="text-xs text-destructive">{importError}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-public">自动公开作品</Label>
+                    <p className="text-xs text-muted-foreground">
+                      生成完成后自动将作品添加到公开作品集
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-public"
+                    checked={autoPublic}
+                    onCheckedChange={onUpdateAutoPublic}
+                  />
+                </div>
               </div>
             </div>
           </TabsContent>

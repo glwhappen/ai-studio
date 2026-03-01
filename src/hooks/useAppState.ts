@@ -305,6 +305,13 @@ export function useAppState() {
       console.error('Failed to delete image:', error);
     }
   }, [userId]);
+  
+  // 更新用户 ID（用于导入身份）
+  const updateUserId = useCallback((newUserId: string) => {
+    setUserId(newUserId);
+    // 同时更新 localStorage 中的 token
+    localStorage.setItem('ai-image-user-token', newUserId);
+  }, []);
 
   return {
     apiConfig,
@@ -322,5 +329,6 @@ export function useAppState() {
     submitGeneration,
     toggleImagePublic,
     deleteImage,
+    updateUserId,
   };
 }

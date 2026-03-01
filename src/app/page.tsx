@@ -37,6 +37,7 @@ function HomeContent() {
     submitGeneration,
     toggleImagePublic,
     deleteImage,
+    updateUserId,
   } = useAppState();
 
   const [prompt, setPrompt] = useState('');
@@ -228,8 +229,10 @@ function HomeContent() {
             <SettingsPanel
               apiConfig={apiConfig}
               autoPublic={autoPublic}
+              userId={userId}
               onUpdateProviderConfig={updateProviderConfig}
               onUpdateAutoPublic={updateAutoPublic}
+              onUpdateUserId={updateUserId}
             />
           </div>
         </div>
