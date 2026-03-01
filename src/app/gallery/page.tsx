@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageViewer } from '@/components/ImageViewer';
+import { ImagePreviewPanel, type PreviewImageInfo } from '@/components/ImagePreviewPanel';
 import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -57,27 +58,6 @@ function hasReferenceImage(image: PublicImage): boolean {
   return !!image.config?.hasReferenceImage;
 }
 
-// 构建创作链接参数
-function buildCreateUrl(image: PublicImage): string {
-  const params = new URLSearchParams();
-  params.set('prompt', image.prompt);
-  params.set('model', image.model);
-  params.set('provider', image.provider);
-  
-  const config = image.config;
-  if (config) {
-    if (config.aspectRatio) params.set('aspectRatio', config.aspectRatio as string);
-    if (config.imageSize) params.set('imageSize', config.imageSize as string);
-    if (config.size) params.set('size', config.size as string);
-    // 如果有参考图标记，使用当前图片作为参考图
-    if (config.hasReferenceImage && image.original_url) {
-      params.set('referenceImageUrl', image.original_url);
-    }
-  }
-  
-  return `/?${params.toString()}`;
-}
-
 // 格式化数字
 function formatNumber(num: number): string {
   if (num >= 10000) {
@@ -101,7 +81,6 @@ function GalleryContent() {
   const [hasMore, setHasMore] = useState(true);
   const [selectedImage, setSelectedImage] = useState<PublicImage | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   
   // 分页和排序
@@ -111,7 +90,6 @@ function GalleryContent() {
   
   // 用户 token
   const [userToken, setUserToken] = useState<string | null>(null);
-  const [isPromptExpanded, setIsPromptExpanded] = useState(false); // 提示词展开状态
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
   
   // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
@@ -318,71 +296,6 @@ function GalleryContent() {
     });
   };
 
-  const handleCopyPrompt = async (image: PublicImage) => {
-    try {
-      await navigator.clipboard.writeText(image.prompt);
-      setCopiedId(image.id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-    }
-  };
-  
-  // 分享图片链接
-  const handleShare = async (image: PublicImage) => {
-    // 使用当前页面的 origin 确保正确
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const shareUrl = `${origin}/gallery?id=${image.id}`;
-    
-    try {
-      // 尝试使用原生分享 API（手机端）
-      if (navigator.share) {
-        await navigator.share({
-          title: 'AI 创作室',
-          text: image.prompt.slice(0, 100) + (image.prompt.length > 100 ? '...' : ''),
-          url: shareUrl,
-        });
-      } else {
-        // 回退到复制链接
-        await navigator.clipboard.writeText(shareUrl);
-        setCopiedId(`share-${image.id}`);
-        setTimeout(() => setCopiedId(null), 2000);
-      }
-    } catch (error) {
-      // 用户取消分享不算错误
-      if ((error as Error).name !== 'AbortError') {
-        console.error('Share failed:', error);
-        // 分享失败也尝试复制链接
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setCopiedId(`share-${image.id}`);
-          setTimeout(() => setCopiedId(null), 2000);
-        } catch (e) {
-          console.error('Copy also failed:', e);
-        }
-      }
-    }
-  };
-
-  const handleDownload = async (image: PublicImage) => {
-    const downloadUrl = image.original_url || image.image_url;
-    
-    try {
-      const response = await fetch(downloadUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ai-${image.id.slice(0, 8)}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-    }
-  };
-  
   // 记录浏览
   const recordView = async (image: PublicImage) => {
     if (!userToken) return;
@@ -510,7 +423,6 @@ function GalleryContent() {
     isClosingRef.current = false; // 重置关闭状态
     setSelectedImage(image);
     setIsPreviewOpen(true);
-    setIsPromptExpanded(false);
     // 更新 URL
     updateUrl(image.id);
     // 记录浏览
@@ -521,7 +433,6 @@ function GalleryContent() {
   const handleClosePreview = () => {
     isClosingRef.current = true; // 标记正在关闭
     setIsPreviewOpen(false);
-    setIsPromptExpanded(false);
     // 清除 URL 中的图片 ID
     updateUrl(null);
   };
@@ -775,218 +686,40 @@ function GalleryContent() {
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
         onClose={handleClosePreview}
-
       />
 
-      {/* 底部操作栏 */}
-      {selectedImage && isPreviewOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-t border-white/10">
-          <div className="container mx-auto px-4 py-2 lg:py-3">
-            {/* 提示词区域 - 移动端可点击展开，电脑端始终显示 */}
-            <div 
-              className={`transition-all duration-300 cursor-pointer lg:cursor-default ${
-                isPromptExpanded ? 'max-h-20' : 'max-h-6 lg:max-h-12'
-              }`}
-              onClick={(e) => {
-                // 只在移动端触发展开
-                if (window.innerWidth < 1024) {
-                  setIsPromptExpanded(prev => !prev);
-                }
-              }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  {/* 移动端：单行显示，点击展开 */}
-                  <p className={`text-white/90 text-sm break-words lg:text-xs lg:line-clamp-2 ${
-                    isPromptExpanded 
-                      ? 'line-clamp-2 lg:line-clamp-2' 
-                      : 'line-clamp-1 lg:line-clamp-2'
-                  }`}>
-                    {selectedImage.prompt}
-                  </p>
-                </div>
-                <button
-                  className="text-white/60 hover:text-white shrink-0 p-1 lg:hidden"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleClosePreview();
-                  }}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* 电脑端：单行紧凑布局 */}
-            <div className="hidden lg:flex items-center justify-between gap-4 mt-2">
-              {/* 左侧：统计信息 */}
-              <div className="flex items-center gap-4 text-xs text-white/50">
-                <span className="flex items-center gap-1">
-                  <Eye className="h-3.5 w-3.5" />
-                  {formatNumber(selectedImage.stats.views)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <ThumbsUp className="h-3.5 w-3.5" />
-                  {formatNumber(selectedImage.stats.likes)}
-                </span>
-                <span>{selectedImage.model}</span>
-              </div>
-              
-              {/* 右侧：操作按钮 */}
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className={`h-8 px-3 ${
-                    selectedImage.userInteraction.has_liked 
-                      ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  onClick={() => userToken && handleLike(selectedImage)}
-                  disabled={!userToken}
-                >
-                  <ThumbsUp className="h-4 w-4 mr-1" />
-                  赞
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className={`h-8 px-3 ${
-                    selectedImage.userInteraction.has_disliked 
-                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  onClick={() => userToken && handleDislike(selectedImage)}
-                  disabled={!userToken}
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/10"
-                  onClick={() => handleCopyPrompt(selectedImage)}
-                >
-                  {copiedId === selectedImage.id ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/10"
-                  onClick={() => handleDownload(selectedImage)}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/10"
-                  onClick={() => handleShare(selectedImage)}
-                >
-                  {copiedId === `share-${selectedImage.id}` ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Share2 className="h-4 w-4" />
-                  )}
-                </Button>
-                <Link href={buildCreateUrl(selectedImage)} onClick={handleClosePreview}>
-                  <Button size="sm" className="h-8 px-4">
-                    <Sparkles className="h-4 w-4 mr-1" />
-                    创作
-                  </Button>
-                </Link>
-                <button
-                  className="text-white/60 hover:text-white p-2"
-                  onClick={handleClosePreview}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* 移动端：按钮布局 */}
-            <div className="lg:hidden mt-2">
-              {/* 统计信息 */}
-              <div className="flex items-center justify-between text-xs text-white/50 mb-2">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <Eye className="h-3 w-3" />
-                    {formatNumber(selectedImage.stats.views)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <ThumbsUp className="h-3 w-3" />
-                    {formatNumber(selectedImage.stats.likes)}
-                  </span>
-                </div>
-                <span>{selectedImage.model}</span>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className={`flex-1 h-9 ${
-                    selectedImage.userInteraction.has_liked 
-                      ? 'bg-green-500/20 border-green-500/50 text-green-400' 
-                      : 'bg-white/10 border-white/20 text-white'
-                  }`}
-                  onClick={() => userToken && handleLike(selectedImage)}
-                  disabled={!userToken}
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className={`flex-1 h-9 ${
-                    selectedImage.userInteraction.has_disliked 
-                      ? 'bg-red-500/20 border-red-500/50 text-red-400' 
-                      : 'bg-white/10 border-white/20 text-white'
-                  }`}
-                  onClick={() => userToken && handleDislike(selectedImage)}
-                  disabled={!userToken}
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1 h-9 bg-white/10 border-white/20 text-white"
-                  onClick={() => handleDownload(selectedImage)}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1 h-9 bg-white/10 border-white/20 text-white"
-                  onClick={() => handleShare(selectedImage)}
-                >
-                  {copiedId === `share-${selectedImage.id}` ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Share2 className="h-4 w-4" />
-                  )}
-                </Button>
-                <Link href={buildCreateUrl(selectedImage)} onClick={handleClosePreview} className="flex-1">
-                  <Button size="sm" className="w-full h-9">
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 底部操作栏 - 使用统一组件 */}
+      <ImagePreviewPanel
+        image={selectedImage ? {
+          id: selectedImage.id,
+          prompt: selectedImage.prompt,
+          model: selectedImage.model,
+          provider: selectedImage.provider,
+          image_url: selectedImage.image_url,
+          original_url: selectedImage.original_url,
+          created_at: selectedImage.created_at,
+          config: selectedImage.config,
+          stats: selectedImage.stats,
+          userInteraction: selectedImage.userInteraction,
+        } as PreviewImageInfo : null}
+        isOpen={isPreviewOpen}
+        config={{
+          mode: 'gallery',
+          onClose: handleClosePreview,
+          onLike: (img) => {
+            // 转换类型并调用原始函数
+            if (selectedImage) {
+              handleLike(selectedImage);
+            }
+          },
+          onDislike: (img) => {
+            if (selectedImage) {
+              handleDislike(selectedImage);
+            }
+          },
+          userToken: userToken,
+        }}
+      />
     </div>
   );
 }
