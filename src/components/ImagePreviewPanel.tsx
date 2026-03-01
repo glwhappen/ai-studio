@@ -124,20 +124,9 @@ interface ImagePreviewPanelProps {
 export function ImagePreviewPanel({ image, isOpen, config }: ImagePreviewPanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
-  const [currentImage, setCurrentImage] = useState<PreviewImageInfo | null>(null);
 
-  // 同步 image 状态
-  useState(() => {
-    if (image) {
-      setCurrentImage(image);
-    }
-  });
-
-  // 当 image 变化时更新
-  if (image && image.id !== currentImage?.id) {
-    setCurrentImage(image);
-    setIsPromptExpanded(false);
-  }
+  // 使用最新的 image 作为 currentImage，避免闭包问题
+  const currentImage = image;
 
   // 复制到剪贴板
   const copyToClipboard = useCallback(async (text: string, id: string) => {
@@ -189,7 +178,6 @@ export function ImagePreviewPanel({ image, isOpen, config }: ImagePreviewPanelPr
   const handleTogglePublic = () => {
     if (config.onTogglePublic && currentImage) {
       config.onTogglePublic(currentImage.id, !currentImage.is_public);
-      setCurrentImage({ ...currentImage, is_public: !currentImage.is_public });
     }
   };
 

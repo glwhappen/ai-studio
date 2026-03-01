@@ -335,16 +335,25 @@ function GalleryContent() {
     }
   };
   
-  // 点赞/取消点赞
-  const handleLike = async (image: PublicImage, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  // 点赞/取消点赞（通过 ID，避免闭包问题）
+  const handleLikeById = useCallback(async (imageId: string) => {
     if (!userToken) return;
     
-    const action = image.userInteraction.has_liked ? 'unlike' : 'like';
+    // 查找当前图片状态（使用函数式更新避免闭包问题）
+    let hasLiked = false;
+    setImages(prev => {
+      const img = prev.find(i => i.id === imageId);
+      if (img) {
+        hasLiked = img.userInteraction.has_liked;
+      }
+      return prev;
+    });
     
-    // 乐观更新
+    const action = hasLiked ? 'unlike' : 'like';
+    
+    // 乐观更新 images
     setImages(prev => prev.map(img => 
-      img.id === image.id 
+      img.id === imageId 
         ? {
             ...img,
             stats: {
@@ -360,9 +369,10 @@ function GalleryContent() {
         : img
     ));
     
-    // 更新选中图片
-    if (selectedImage?.id === image.id) {
-      setSelectedImage(prev => prev ? {
+    // 乐观更新 selectedImage
+    setSelectedImage(prev => {
+      if (!prev || prev.id !== imageId) return prev;
+      return {
         ...prev,
         stats: {
           ...prev.stats,
@@ -373,15 +383,15 @@ function GalleryContent() {
           has_liked: action === 'like',
           has_disliked: false,
         },
-      } : null);
-    }
+      };
+    });
     
     try {
       await fetch('/api/images/interact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageId: image.id,
+          imageId,
           userToken,
           action,
         }),
@@ -389,18 +399,27 @@ function GalleryContent() {
     } catch (error) {
       console.error('Like error:', error);
     }
-  };
+  }, [userToken]);
   
-  // 点踩/取消点踩
-  const handleDislike = async (image: PublicImage, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  // 点踩/取消点踩（通过 ID，避免闭包问题）
+  const handleDislikeById = useCallback(async (imageId: string) => {
     if (!userToken) return;
     
-    const action = image.userInteraction.has_disliked ? 'undislike' : 'dislike';
+    // 查找当前图片状态（使用函数式更新避免闭包问题）
+    let hasDisliked = false;
+    setImages(prev => {
+      const img = prev.find(i => i.id === imageId);
+      if (img) {
+        hasDisliked = img.userInteraction.has_disliked;
+      }
+      return prev;
+    });
     
-    // 乐观更新
+    const action = hasDisliked ? 'undislike' : 'dislike';
+    
+    // 乐观更新 images
     setImages(prev => prev.map(img => 
-      img.id === image.id 
+      img.id === imageId 
         ? {
             ...img,
             userInteraction: {
@@ -412,24 +431,25 @@ function GalleryContent() {
         : img
     ));
     
-    // 更新选中图片
-    if (selectedImage?.id === image.id) {
-      setSelectedImage(prev => prev ? {
+    // 乐观更新 selectedImage
+    setSelectedImage(prev => {
+      if (!prev || prev.id !== imageId) return prev;
+      return {
         ...prev,
         userInteraction: {
           ...prev.userInteraction,
           has_disliked: action === 'dislike',
           has_liked: false,
         },
-      } : null);
-    }
+      };
+    });
     
     try {
       await fetch('/api/images/interact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageId: image.id,
+          imageId,
           userToken,
           action,
         }),
@@ -437,6 +457,17 @@ function GalleryContent() {
     } catch (error) {
       console.error('Dislike error:', error);
     }
+  }, [userToken]);
+  
+  // 保留原有的 handleLike/handleDislike 用于瀑布流卡片（兼容）
+  const handleLike = async (image: PublicImage, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    handleLikeById(image.id);
+  };
+  
+  const handleDislike = async (image: PublicImage, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    handleDislikeById(image.id);
   };
   
   // 打开图片预览
@@ -767,14 +798,13 @@ function GalleryContent() {
           mode: 'gallery',
           onClose: handleClosePreview,
           onLike: (img) => {
-            // 转换类型并调用原始函数
-            if (selectedImage) {
-              handleLike(selectedImage);
+            if (img?.id) {
+              handleLikeById(img.id);
             }
           },
           onDislike: (img) => {
-            if (selectedImage) {
-              handleDislike(selectedImage);
+            if (img?.id) {
+              handleDislikeById(img.id);
             }
           },
           userToken: userToken,
