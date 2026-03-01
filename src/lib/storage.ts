@@ -103,3 +103,25 @@ export async function getImageUrl(key: string, expireTime = 86400 * 30): Promise
 export function isBase64DataUrl(url: string): boolean {
   return url.startsWith('data:image/');
 }
+
+// 获取图片尺寸
+export async function getImageDimensions(
+  base64Data: string
+): Promise<{ width: number; height: number }> {
+  // 解析 base64 data URL
+  const prefixEnd = base64Data.indexOf(',');
+  if (prefixEnd === -1) {
+    throw new Error('Invalid base64 image format: no comma found');
+  }
+  
+  const base64 = base64Data.substring(prefixEnd + 1);
+  const buffer = Buffer.from(base64, 'base64');
+  
+  // 使用 sharp 获取图片元数据
+  const metadata = await sharp(buffer).metadata();
+  
+  return {
+    width: metadata.width || 0,
+    height: metadata.height || 0,
+  };
+}

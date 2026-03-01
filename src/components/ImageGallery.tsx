@@ -154,6 +154,12 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
 
   // 获取尺寸显示文本
   const getSizeText = (image: ImageRecord): string | null => {
+    // 优先使用实际像素尺寸
+    if (image.width && image.height) {
+      return `${image.width} × ${image.height}`;
+    }
+    
+    // 回退到配置中的尺寸信息
     const config = image.config as Record<string, unknown> | null;
     
     if (image.provider === 'gemini' && config?.aspectRatio && config?.imageSize) {
@@ -212,17 +218,42 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
                     </Button>
                   </div>
                 ) : (
-                  <img
-                    src={image.thumbnail_url || image.image_url}
-                    alt={image.prompt}
-                    className="w-full h-auto cursor-pointer transition-transform group-hover:scale-[1.02]"
-                    onClick={() => {
-                      setSelectedImage(image);
-                      setIsPreviewOpen(true);
-                    }}
-                    onError={() => handleImageError(image.id)}
-                    loading="lazy"
-                  />
+                  <div 
+                    className="relative bg-gradient-to-br from-muted via-muted/90 to-muted overflow-hidden"
+                    style={image.width && image.height ? { aspectRatio: `${image.width}/${image.height}` } : { minHeight: '200px' }}
+                  >
+                    {/* 骨架屏动画层 */}
+                    <div className="skeleton-shimmer absolute inset-0" />
+                    {/* 图片加载指示器 */}
+                    <div className="skeleton-spinner absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 text-muted-foreground/50 animate-spin" />
+                    </div>
+                    {/* 实际图片 */}
+                    <img
+                      src={image.thumbnail_url || image.image_url}
+                      alt={image.prompt}
+                      className="relative z-10 w-full h-auto opacity-0 transition-opacity duration-500 cursor-pointer group-hover:scale-[1.02]"
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        img.classList.remove('opacity-0');
+                        img.classList.add('opacity-100');
+                        // 隐藏骨架屏元素
+                        const parent = img.parentElement;
+                        if (parent) {
+                          const shimmer = parent.querySelector('.skeleton-shimmer');
+                          const spinner = parent.querySelector('.skeleton-spinner');
+                          if (shimmer) shimmer.classList.add('hidden');
+                          if (spinner) spinner.classList.add('hidden');
+                        }
+                      }}
+                      onClick={() => {
+                        setSelectedImage(image);
+                        setIsPreviewOpen(true);
+                      }}
+                      onError={() => handleImageError(image.id)}
+                      loading="lazy"
+                    />
+                  </div>
                 )
               ) : (
                 <div className="flex flex-col items-center justify-center gap-2 bg-muted/50 p-4 min-h-[120px]">

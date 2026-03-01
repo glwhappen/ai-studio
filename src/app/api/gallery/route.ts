@@ -111,10 +111,10 @@ export async function GET(request: NextRequest) {
       // 为了性能，如果总数太大，只获取一个较大的子集
       const fetchLimit = Math.min(totalCount, 500);
       
-      // 获取图片数据（包含点赞数）
+      // 获取图片数据（包含点赞数和尺寸）
       const { data: allImages, error: queryError } = await client
         .from('images')
-        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
+        .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, width, height')
         .eq('is_public', true)
         .eq('status', 'completed')
         .not('image_url', 'is', null)
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     // 非随机排序：正常查询
     const { data, error } = await client
       .from('images')
-      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count')
+      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, width, height')
       .eq('is_public', true)
       .eq('status', 'completed')
       .not('image_url', 'is', null)
@@ -180,6 +180,8 @@ async function processImages(
     like_count: number | null;
     create_count: number | null;
     dislike_count: number | null;
+    width: number | null;
+    height: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null,
@@ -228,6 +230,8 @@ async function processImageData(
     like_count: number | null;
     create_count: number | null;
     dislike_count: number | null;
+    width: number | null;
+    height: number | null;
   }>,
   client: ReturnType<typeof getSupabaseClient>,
   userToken: string | null
@@ -307,6 +311,9 @@ async function processImageData(
       thumbnail_url: stableThumbnailUrl, // 缩略图 URL
       original_url: signedUrl || imageUrl, // 原始签名 URL，用于下载
       original_thumbnail_url: thumbnailSignedUrl, // 缩略图原始签名 URL
+      // 图片尺寸
+      width: img.width,
+      height: img.height,
       // 统计数据
       stats: {
         views: img.view_count || 0,

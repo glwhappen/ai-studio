@@ -27,6 +27,8 @@ export interface PreviewImageInfo {
   original_url?: string;
   created_at: string;
   config?: Record<string, unknown> | null;
+  width?: number | null;
+  height?: number | null;
   // 我的作品特有
   is_public?: boolean;
   status?: string;
@@ -268,6 +270,9 @@ export function ImagePreviewPanel({ image, isOpen, config }: ImagePreviewPanelPr
                 </span>
               </>
             )}
+            {currentImage?.width && currentImage?.height && (
+              <span>{currentImage.width} × {currentImage.height}</span>
+            )}
             <span>{currentImage?.model}</span>
             <span>{currentImage?.created_at && formatDate(currentImage.created_at)}</span>
           </div>
@@ -412,18 +417,23 @@ export function ImagePreviewPanel({ image, isOpen, config }: ImagePreviewPanelPr
         <div className="lg:hidden mt-2">
           {/* 信息 */}
           <div className="flex items-center justify-between text-xs text-white/50 mb-2">
-            {isGallery && currentImage?.stats && (
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Eye className="h-3 w-3" />
-                  {formatNumber(currentImage.stats.views)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <ThumbsUp className="h-3 w-3" />
-                  {formatNumber(currentImage.stats.likes)}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {isGallery && currentImage?.stats && (
+                <>
+                  <span className="flex items-center gap-1">
+                    <Eye className="h-3 w-3" />
+                    {formatNumber(currentImage.stats.views)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <ThumbsUp className="h-3 w-3" />
+                    {formatNumber(currentImage.stats.likes)}
+                  </span>
+                </>
+              )}
+              {currentImage?.width && currentImage?.height && (
+                <span>{currentImage.width} × {currentImage.height}</span>
+              )}
+            </div>
             <span>{currentImage?.model}</span>
           </div>
 

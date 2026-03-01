@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { uploadBase64Image, isBase64DataUrl, getImageUrl, generateAndUploadThumbnail } from '@/lib/storage';
+import { uploadBase64Image, isBase64DataUrl, getImageUrl, generateAndUploadThumbnail, getImageDimensions } from '@/lib/storage';
 import type { ApiProvider } from '@/types';
 
 interface GenerateRequest {
@@ -136,9 +136,20 @@ async function generateImageAsync(
       // 如果是 base64 data URL，上传到对象存储
       let storedUrl = imageUrl;
       let thumbnailUrl: string | undefined;
+      let width: number | undefined;
+      let height: number | undefined;
       
       if (isBase64DataUrl(imageUrl)) {
         try {
+          // 获取图片尺寸
+          try {
+            const dimensions = await getImageDimensions(imageUrl);
+            width = dimensions.width;
+            height = dimensions.height;
+          } catch (dimError) {
+            console.error('Failed to get image dimensions:', dimError);
+          }
+          
           // 上传原图
           const key = await uploadBase64Image(imageUrl, `${imageId}.png`);
           storedUrl = key; // 存储对象存储的 key
@@ -164,6 +175,8 @@ async function generateImageAsync(
           status: 'completed',
           image_url: storedUrl,
           thumbnail_url: thumbnailUrl,
+          width,
+          height,
           updated_at: new Date().toISOString(),
         })
         .eq('id', imageId);

@@ -18,6 +18,8 @@ export interface ImageRecord {
   image_url: string | null;
   thumbnail_url?: string | null; // 缩略图 URL
   original_url?: string; // 原始签名 URL，用于下载
+  width?: number | null; // 图片宽度
+  height?: number | null; // 图片高度
   error_message: string | null;
   is_public: boolean;
   config: Record<string, unknown> | null;

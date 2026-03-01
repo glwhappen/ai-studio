@@ -26,6 +26,8 @@ interface PublicImage {
   original_url?: string;
   created_at: string;
   config: Record<string, unknown> | null;
+  width?: number | null;
+  height?: number | null;
   stats: {
     views: number;
     likes: number;
@@ -39,6 +41,12 @@ interface PublicImage {
 
 // 获取尺寸显示文本
 function getSizeText(image: PublicImage): string | null {
+  // 优先使用实际像素尺寸
+  if (image.width && image.height) {
+    return `${image.width} × ${image.height}`;
+  }
+  
+  // 回退到配置中的尺寸信息
   const config = image.config;
   
   if (image.provider === 'gemini' && config?.aspectRatio && config?.imageSize) {
@@ -570,7 +578,10 @@ function GalleryContent() {
                           </div>
                         ) : (
                           /* 图片容器 - 使用 CSS 骨架屏背景 */
-                          <div className="relative min-h-[200px] bg-gradient-to-br from-muted via-muted/90 to-muted overflow-hidden">
+                          <div 
+                            className="relative bg-gradient-to-br from-muted via-muted/90 to-muted overflow-hidden"
+                            style={image.width && image.height ? { aspectRatio: `${image.width}/${image.height}` } : { minHeight: '200px' }}
+                          >
                             {/* 骨架屏动画层 */}
                             <div className="skeleton-shimmer absolute inset-0" />
                             {/* 图片加载指示器 */}

@@ -69,6 +69,9 @@ export async function GET(request: NextRequest) {
         status: img.status,
         image_url: stableUrl, // 稳定的 URL，浏览器可缓存
         original_url: signedUrl || imageUrl, // 原始签名 URL，用于下载
+        thumbnail_url: img.thumbnail_url ? `/api/images/${img.id}/thumbnail` : undefined,
+        width: img.width,
+        height: img.height,
         error_message: img.error_message,
         is_public: img.is_public,
         config: img.config,
