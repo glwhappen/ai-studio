@@ -96,6 +96,10 @@ export async function GET(request: NextRequest) {
     
     // 随机排序：使用加权随机（点赞多概率高，点踩多概率低）
     if (useRandom) {
+      // 解析要排除的图片ID
+      const excludeIdsParam = searchParams.get('excludeIds');
+      const excludeIds = excludeIdsParam ? new Set(excludeIdsParam.split(',')) : new Set<string>();
+      
       // 获取总数
       const { count } = await client
         .from('images')
@@ -145,8 +149,11 @@ export async function GET(request: NextRequest) {
       
       if (queryError) throw queryError;
       
+      // 过滤掉已排除的图片
+      const availableImages = (allImages || []).filter(img => !excludeIds.has(img.id));
+      
       // 使用加权随机选择
-      const selectedImages = weightedRandomSelect(allImages || [], limit);
+      const selectedImages = weightedRandomSelect(availableImages, limit);
       
       // 处理图片数据
       const images = await processImageData(selectedImages, client, userToken);

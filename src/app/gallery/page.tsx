@@ -101,6 +101,8 @@ function GalleryContent() {
   const isClosingRef = useRef(false);
   // 底部观察器 ref
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  // 已加载的图片ID（用于随机排序时避免重复）
+  const loadedIdsRef = useRef<Set<string>>(new Set());
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -129,6 +131,8 @@ function GalleryContent() {
       setIsLoadingMore(true);
     } else {
       setIsLoading(true);
+      // 非追加模式时清空已加载ID
+      loadedIdsRef.current = new Set();
     }
     
     try {
@@ -141,10 +145,21 @@ function GalleryContent() {
         params.set('userToken', userToken);
       }
       
+      // 随机排序时，传递已加载的图片ID以避免重复
+      if (sort === 'random' && loadedIdsRef.current.size > 0) {
+        const loadedIds = Array.from(loadedIdsRef.current).join(',');
+        if (loadedIds) {
+          params.set('excludeIds', loadedIds);
+        }
+      }
+      
       const response = await fetch(`/api/gallery?${params}`);
       const data = await response.json();
       
       if (data.success) {
+        // 记录新加载的图片ID
+        data.images.forEach((img: PublicImage) => loadedIdsRef.current.add(img.id));
+        
         if (append) {
           // 追加模式：合并图片列表
           setImages(prev => [...prev, ...data.images]);
