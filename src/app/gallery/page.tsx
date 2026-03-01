@@ -445,7 +445,7 @@ function GalleryContent() {
   return (
     <div className="min-h-screen bg-background">
       {/* 头部 */}
-      <header className="border-b bg-card sticky top-0 z-10">
+      <header className="border-b bg-card sticky top-0 z-50">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <h1 className="font-serif text-xl font-bold tracking-tight">
             公开作品集
