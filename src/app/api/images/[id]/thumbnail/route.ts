@@ -73,11 +73,15 @@ export async function GET(
     const imageBuffer = await response.arrayBuffer();
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     
+    // 缩略图统一使用 jpg 格式
+    const filename = `ai-image-${id.slice(0, 8)}-thumbnail.jpg`;
+    
     // 返回图片，强缓存 1 年
     return new NextResponse(imageBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
+        'Content-Disposition': `inline; filename="${filename}"`,
         'Cache-Control': 'public, max-age=31536000, immutable',
         'ETag': etag,
         'Access-Control-Allow-Origin': '*',

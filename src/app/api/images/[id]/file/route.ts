@@ -72,11 +72,20 @@ export async function GET(
     const imageBuffer = await response.arrayBuffer();
     const contentType = response.headers.get('content-type') || 'image/png';
     
+    // 根据内容类型确定文件扩展名
+    const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg'
+              : contentType.includes('webp') ? 'webp'
+              : 'png';
+    
+    // 生成友好的文件名
+    const filename = `ai-image-${id.slice(0, 8)}.${ext}`;
+    
     // 返回图片，强缓存 1 年
     return new NextResponse(imageBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
+        'Content-Disposition': `inline; filename="${filename}"`,
         'Cache-Control': 'public, max-age=31536000, immutable',
         'ETag': etag,
         'Access-Control-Allow-Origin': '*',
