@@ -435,6 +435,7 @@ export function ImageGallery({ images, onDeleteImage, onTogglePublic, onEdit, sh
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
+        thumbnailSrc={selectedImage?.thumbnail_url || undefined}
       />
 
       {/* 底部操作栏 - 使用统一组件 */}

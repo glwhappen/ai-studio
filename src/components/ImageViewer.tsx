@@ -10,9 +10,10 @@ interface ImageViewerProps {
   isOpen: boolean;
   onClose: () => void;
   onImageClick?: () => void; // 点击图片回调
+  thumbnailSrc?: string; // 缩略图 URL（先显示缩略图，原图加载后替换）
 }
 
-export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageViewerProps) {
+export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnailSrc }: ImageViewerProps) {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -21,6 +22,11 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
   const containerRef = useRef<HTMLDivElement>(null);
   const [lastPinchDist, setLastPinchDist] = useState(0);
   const [pinchStartScale, setPinchStartScale] = useState(1); // 双指缩放开始时的缩放比例
+  
+  // 缩略图和原图加载状态
+  const [displaySrc, setDisplaySrc] = useState<string | null>(null);
+  const [isOriginalLoaded, setIsOriginalLoaded] = useState(false);
+  const originalImageRef = useRef<HTMLImageElement | null>(null);
 
   // 重置状态
   const resetState = useCallback(() => {
@@ -32,8 +38,51 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
   useEffect(() => {
     if (!isOpen) {
       resetState();
+      setIsOriginalLoaded(false);
+      // 如果有缩略图，先显示缩略图
+      if (thumbnailSrc) {
+        setDisplaySrc(thumbnailSrc);
+      } else {
+        setDisplaySrc(null);
+      }
     }
-  }, [isOpen, resetState]);
+  }, [isOpen, resetState, thumbnailSrc]);
+
+  // 加载原图
+  useEffect(() => {
+    if (!isOpen || !src || isOriginalLoaded) return;
+    
+    // 如果没有缩略图，直接显示原图
+    if (!thumbnailSrc) {
+      setDisplaySrc(src);
+      setIsOriginalLoaded(true);
+      return;
+    }
+    
+    // 先显示缩略图
+    setDisplaySrc(thumbnailSrc);
+    
+    // 后台加载原图
+    const img = new Image();
+    img.onload = () => {
+      setDisplaySrc(src);
+      setIsOriginalLoaded(true);
+    };
+    img.onerror = () => {
+      // 原图加载失败，保持缩略图
+      console.error('Failed to load original image:', src);
+    };
+    img.src = src;
+    originalImageRef.current = img;
+    
+    return () => {
+      // 清理
+      if (originalImageRef.current) {
+        originalImageRef.current.onload = null;
+        originalImageRef.current.onerror = null;
+      }
+    };
+  }, [isOpen, src, thumbnailSrc, isOriginalLoaded]);
 
   // ESC 关闭
   useEffect(() => {
@@ -222,24 +271,33 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick }: ImageVi
         onTouchEnd={handleTouchEnd}
         onDoubleClick={handleDoubleClick}
       >
-        <img
-          src={src}
-          alt={alt}
-          className="max-w-full max-h-full object-contain select-none"
-          style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-            transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out',
-            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
-          }}
-          draggable={false}
-          onClick={(e) => {
-            e.stopPropagation();
-            // 缩放为1时，点击图片触发回调
-            if (scale === 1 && !isDragging && !isPinching && onImageClick) {
-              handleImageClick();
-            }
-          }}
-        />
+        {displaySrc ? (
+          <img
+            src={displaySrc}
+            alt={alt}
+            className="max-w-full max-h-full object-contain select-none"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out, opacity 0.3s ease-out',
+              cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+              // 原图加载后稍微淡入，实现平滑过渡
+              opacity: isOriginalLoaded ? 1 : 0.95,
+            }}
+            draggable={false}
+            onClick={(e) => {
+              e.stopPropagation();
+              // 缩放为1时，点击图片触发回调
+              if (scale === 1 && !isDragging && !isPinching && onImageClick) {
+                handleImageClick();
+              }
+            }}
+          />
+        ) : (
+          // 加载中占位
+          <div className="flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
       </div>
 
       {/* 底部提示 */}
