@@ -150,10 +150,11 @@ export async function GET(request: NextRequest) {
       if (queryError) throw queryError;
       
       // 过滤掉已排除的图片
-      const availableImages = (allImages || []).filter(img => !excludeIds.has(img.id));
+      const availableImages = (allImages || []).filter((img: { id: string }) => !excludeIds.has(img.id));
       
       // 使用加权随机选择
-      const selectedImages = weightedRandomSelect(availableImages, limit);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const selectedImages = weightedRandomSelect(availableImages as any[], limit);
       
       // 处理图片数据
       const images = await processImageData(selectedImages, client, userToken);
@@ -301,7 +302,7 @@ async function processImageData(
       .in('image_id', imageIds);
     
     if (interactions) {
-      interactions.forEach(i => {
+      interactions.forEach((i: { image_id: string; has_liked: boolean; has_disliked: boolean }) => {
         userInteractions[i.image_id] = {
           has_liked: i.has_liked,
           has_disliked: i.has_disliked,

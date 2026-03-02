@@ -25,7 +25,23 @@ export async function GET(request: NextRequest) {
     }
     
     // 转换字段名，并处理图片 URL（自动迁移 base64 到对象存储）
-    const images = await Promise.all((data || []).map(async (img) => {
+    const images = await Promise.all((data || []).map(async (img: {
+      id: string;
+      image_url: string | null;
+      status: string;
+      user_id: string;
+      prompt: string;
+      model: string | null;
+      provider: string | null;
+      thumbnail_url: string | null;
+      width: number | null;
+      height: number | null;
+      error_message: string | null;
+      is_public: boolean;
+      config: Record<string, unknown> | null;
+      created_at: string;
+      updated_at: string;
+    }) => {
       let imageUrl = img.image_url;
       let signedUrl: string | undefined;
       

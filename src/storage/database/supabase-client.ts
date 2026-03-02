@@ -1,10 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getPostgresClient } from './postgres-client';
 
 let envLoaded = false;
 
 interface SupabaseCredentials {
   url: string;
   anonKey: string;
+}
+
+// 检测是否是 Supabase Cloud
+function isSupabaseCloud(url: string): boolean {
+  return url.includes('.supabase.co') || url.includes('.supabase.in');
 }
 
 function loadEnv(): void {
@@ -87,33 +93,52 @@ function getSupabaseCredentials(): SupabaseCredentials {
   return { url, anonKey };
 }
 
-function getSupabaseClient(token?: string): SupabaseClient {
+// 缓存客户端实例
+let _supabaseClient: SupabaseClient | null = null;
+
+// 数据库客户端类型（Supabase 或 PostgreSQL）
+type DatabaseClient = SupabaseClient | ReturnType<typeof getPostgresClient>;
+
+// 获取数据库客户端（自动检测 Supabase Cloud 或纯 PostgreSQL）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabaseClient(token?: string): any {
   const { url, anonKey } = getSupabaseCredentials();
-
-  if (token) {
-    return createClient(url, anonKey, {
-      global: {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      db: {
-        timeout: 60000,
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+  
+  // 判断是否使用 Supabase Cloud
+  if (isSupabaseCloud(url)) {
+    // 使用 Supabase Cloud
+    if (!_supabaseClient) {
+      _supabaseClient = createClient(url, anonKey, {
+        db: {
+          timeout: 60000,
+        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+    }
+    
+    if (token) {
+      return createClient(url, anonKey, {
+        global: {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        db: {
+          timeout: 60000,
+        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+    }
+    
+    return _supabaseClient;
   }
-
-  return createClient(url, anonKey, {
-    db: {
-      timeout: 60000,
-    },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  
+  // 使用纯 PostgreSQL
+  return getPostgresClient();
 }
 
 export { loadEnv, getSupabaseCredentials, getSupabaseClient };
