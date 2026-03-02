@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle, Wand2, Pencil, Trash2 } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle, Wand2, Pencil, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 function HomeContent() {
@@ -43,6 +43,7 @@ function HomeContent() {
     updateProviderConfig,
     switchProvider,
     getCurrentProviderConfig,
+    fetchImages,
     submitGeneration,
     toggleImagePublic,
     deleteImage,
@@ -61,6 +62,9 @@ function HomeContent() {
   const [isRewriteDialogOpen, setIsRewriteDialogOpen] = useState(false);
   const [rewriteInstruction, setRewriteInstruction] = useState('');
   const [isRewriting, setIsRewriting] = useState(false);
+  // 直接生成相关状态
+  const [isDirectGenerating, setIsDirectGenerating] = useState(false);
+  const [directGenerateResults, setDirectGenerateResults] = useState<Array<{ status: 'pending' | 'generating' | 'success' | 'error'; instruction: string; error?: string }>>([]);
 
   // 提示词历史记录（用于撤销/重做）
   const [promptHistory, setPromptHistory] = useState<string[]>(['']);
@@ -300,6 +304,91 @@ function HomeContent() {
       setError('改写失败，请重试');
     } finally {
       setIsRewriting(false);
+    }
+  };
+
+  // 直接生成（后台改写并绘图，不关闭对话框，不修改原提示词）
+  const handleDirectGenerate = async () => {
+    if (!prompt.trim() || !rewriteInstruction.trim() || isDirectGenerating) return;
+    
+    const currentInstruction = rewriteInstruction;
+    
+    // 添加到结果列表
+    const resultIndex = directGenerateResults.length;
+    setDirectGenerateResults(prev => [...prev, { 
+      status: 'generating', 
+      instruction: currentInstruction 
+    }]);
+    setIsDirectGenerating(true);
+    
+    try {
+      // 1. 先改写提示词
+      const templates = loadPromptTemplates();
+      const llmConfig = loadPromptLLMConfig();
+      
+      const rewriteResponse = await fetch('/api/prompt/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt, 
+          mode: 'rewrite', 
+          instruction: currentInstruction,
+          rewriteSystemPrompt: templates.rewriteSystemPrompt,
+          rewriteUserPrompt: templates.rewriteUserPrompt,
+          ...llmConfig,
+        }),
+      });
+      
+      const rewriteData = await rewriteResponse.json();
+      if (!rewriteData.success) {
+        setDirectGenerateResults(prev => prev.map((r, i) => 
+          i === resultIndex ? { ...r, status: 'error', error: rewriteData.error || '改写失败' } : r
+        ));
+        return;
+      }
+      
+      const enhancedPrompt = rewriteData.enhancedPrompt;
+      
+      // 2. 提交生成任务（后台执行）
+      const currentConfig = getCurrentProviderConfig();
+      const submitResponse = await fetch('/api/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: enhancedPrompt,
+          model: apiConfig.selectedModel,
+          provider: currentProvider,
+          baseUrl: currentConfig.baseUrl,
+          apiKey: currentConfig.apiKey,
+          userId: userId,
+          isPublic: autoPublic,
+          aspectRatio: apiConfig.aspectRatio,
+          imageSize: apiConfig.imageSize,
+          size: apiConfig.openaiSize,
+          referenceImage: referenceImage?.base64,
+          referenceImageMime: referenceImage?.mimeType,
+        }),
+      });
+      
+      const submitData = await submitResponse.json();
+      
+      if (submitData.success) {
+        setDirectGenerateResults(prev => prev.map((r, i) => 
+          i === resultIndex ? { ...r, status: 'success' } : r
+        ));
+        // 刷新图片列表
+        fetchImages();
+      } else {
+        setDirectGenerateResults(prev => prev.map((r, i) => 
+          i === resultIndex ? { ...r, status: 'error', error: submitData.error || '生成失败' } : r
+        ));
+      }
+    } catch (err) {
+      setDirectGenerateResults(prev => prev.map((r, i) => 
+        i === resultIndex ? { ...r, status: 'error', error: '请求失败' } : r
+      ));
+    } finally {
+      setIsDirectGenerating(false);
     }
   };
 
@@ -743,10 +832,19 @@ function HomeContent() {
       </main>
 
       {/* AI改写对话框 */}
-      <Dialog open={isRewriteDialogOpen} onOpenChange={setIsRewriteDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={isRewriteDialogOpen} onOpenChange={(open) => {
+        setIsRewriteDialogOpen(open);
+        if (!open) {
+          // 关闭时清空结果
+          setDirectGenerateResults([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
-            <DialogTitle>AI改写提示词</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              AI改写提示词
+            </DialogTitle>
             <DialogDescription>
               告诉AI你想要如何修改提示词，例如：把主角换成猫咪、改成油画风格、增加夜景氛围等
             </DialogDescription>
@@ -760,36 +858,87 @@ function HomeContent() {
                 value={rewriteInstruction}
                 onChange={(e) => setRewriteInstruction(e.target.value)}
                 className="min-h-[100px] resize-none"
-                disabled={isRewriting}
+                disabled={isRewriting || isDirectGenerating}
               />
             </div>
+            
+            {/* 直接生成结果列表 */}
+            {directGenerateResults.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">生成记录</Label>
+                <div className="max-h-[150px] overflow-y-auto space-y-1.5">
+                  {directGenerateResults.map((result, index) => (
+                    <div 
+                      key={index} 
+                      className={`flex items-center gap-2 text-xs p-2 rounded ${
+                        result.status === 'success' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
+                        result.status === 'error' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
+                        result.status === 'generating' ? 'bg-primary/10 text-primary' :
+                        'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {result.status === 'generating' && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {result.status === 'success' && <CheckCircle className="h-3 w-3" />}
+                      {result.status === 'error' && <AlertCircle className="h-3 w-3" />}
+                      <span className="truncate flex-1">{result.instruction}</span>
+                      {result.status === 'success' && <span className="text-[10px]">已提交</span>}
+                      {result.status === 'error' && <span className="text-[10px]">{result.error}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsRewriteDialogOpen(false);
-                setRewriteInstruction('');
-              }}
-            >
-              取消
-            </Button>
-            <Button 
-              onClick={handleRewritePrompt}
-              disabled={!rewriteInstruction.trim() || isRewriting}
-            >
-              {isRewriting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  改写中...
-                </>
-              ) : (
-                <>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  确认改写
-                </>
-              )}
-            </Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsRewriteDialogOpen(false);
+                  setRewriteInstruction('');
+                }}
+                className="flex-1 sm:flex-none"
+              >
+                关闭
+              </Button>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button 
+                variant="secondary"
+                onClick={handleRewritePrompt}
+                disabled={!rewriteInstruction.trim() || isRewriting || isDirectGenerating}
+                className="flex-1 sm:flex-none"
+              >
+                {isRewriting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    改写中...
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    改写
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={handleDirectGenerate}
+                disabled={!rewriteInstruction.trim() || isRewriting || isDirectGenerating || !userId}
+                className="flex-1 sm:flex-none"
+              >
+                {isDirectGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    直接生成
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
