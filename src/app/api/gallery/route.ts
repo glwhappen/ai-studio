@@ -61,6 +61,62 @@ function weightedRandomSelect<T extends { id: string; like_count: number | null;
   return selected;
 }
 
+// 获取单个图片（用于 URL 参数 id）
+async function getSingleImage(
+  imageId: string,
+  client: ReturnType<typeof getSupabaseClient>,
+  userToken: string | null
+) {
+  // 尝试查询包含尺寸信息
+  let data = null;
+  let error = null;
+  
+  const { data: dataWithDims, error: errorWithDims } = await client
+    .from('images')
+    .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, width, height, user_id')
+    .eq('id', imageId)
+    .single();
+  
+  if (errorWithDims && errorWithDims.code === '42703') {
+    const { data: dataBasic, error: errorBasic } = await client
+      .from('images')
+      .select('id, prompt, model, provider, image_url, thumbnail_url, is_public, created_at, config, view_count, like_count, create_count, dislike_count, user_id')
+      .eq('id', imageId)
+      .single();
+    
+    data = dataBasic;
+    error = errorBasic;
+  } else {
+    data = dataWithDims;
+    error = errorWithDims;
+  }
+  
+  if (error || !data) {
+    return NextResponse.json({
+      success: false,
+      error: '图片不存在',
+      image: null,
+    }, { status: 404 });
+  }
+  
+  // 检查是否公开（允许查看自己未公开的图片）
+  const isOwnImage = userToken && data.user_id === userToken;
+  if (!data.is_public && !isOwnImage) {
+    return NextResponse.json({
+      success: false,
+      error: '图片未公开',
+      image: null,
+    }, { status: 403 });
+  }
+  
+  const images = await processImageData([data], client, userToken);
+  
+  return NextResponse.json({
+    success: true,
+    image: images[0] || null,
+  });
+}
+
 // 获取公开作品集
 export async function GET(request: NextRequest) {
   try {
@@ -70,8 +126,14 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
     const userToken = searchParams.get('userToken') || null;
     const sortBy = searchParams.get('sort') || 'random'; // latest, popular, likes, random
+    const targetId = searchParams.get('id'); // 获取指定 ID 的图片
     
     const client = getSupabaseClient();
+    
+    // 如果指定了图片 ID，单独获取这张图片
+    if (targetId) {
+      return await getSingleImage(targetId, client, userToken);
+    }
     
     // 构建排序
     let orderBy = 'created_at';

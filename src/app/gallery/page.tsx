@@ -104,6 +104,8 @@ function GalleryContent() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   // 已加载的图片ID（用于随机排序时避免重复）
   const loadedIdsRef = useRef<Set<string>>(new Set());
+  // 需要自动打开的图片ID（用于 URL 参数 id）
+  const pendingOpenImageIdRef = useRef<string | null>(null);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -183,11 +185,88 @@ function GalleryContent() {
     }
   }, [userToken]);
 
-  // 初始加载
+  // 获取单个图片（用于 URL 参数 id）
+  const fetchSingleImage = useCallback(async (imageId: string): Promise<PublicImage | null> => {
+    try {
+      const params = new URLSearchParams();
+      params.set('id', imageId);
+      if (userToken) {
+        params.set('userToken', userToken);
+      }
+      
+      const response = await fetch(`/api/gallery?${params}`);
+      const data = await response.json();
+      
+      if (data.success && data.image) {
+        return data.image;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch single image:', error);
+      return null;
+    }
+  }, [userToken]);
+
+  // 初始加载（支持 URL 参数 id）
   useEffect(() => {
     if (!isInitialized) return;
-    fetchGallery(1, sortBy);
-  }, [isInitialized, sortBy, refreshKey, fetchGallery]);
+    
+    const imageIdFromUrl = searchParams.get('id');
+    
+    // 如果有 URL 参数 id，先单独获取这张图片
+    if (imageIdFromUrl) {
+      (async () => {
+        setIsLoading(true);
+        
+        // 先获取指定图片
+        const targetImage = await fetchSingleImage(imageIdFromUrl);
+        
+        // 然后获取画廊列表
+        const params = new URLSearchParams({
+          page: '1',
+          limit: '20',
+          sort: sortBy,
+        });
+        if (userToken) {
+          params.set('userToken', userToken);
+        }
+        
+        try {
+          const response = await fetch(`/api/gallery?${params}`);
+          const data = await response.json();
+          
+          if (data.success) {
+            if (targetImage) {
+              // 把目标图片放在第一个，并从列表中移除重复项
+              const otherImages = data.images.filter((img: PublicImage) => img.id !== targetImage.id);
+              const allImages = [targetImage, ...otherImages];
+              
+              // 记录图片ID
+              allImages.forEach((img: PublicImage) => loadedIdsRef.current.add(img.id));
+              
+              setImages(allImages);
+              
+              // 标记需要自动打开（在另一个 useEffect 中处理）
+              pendingOpenImageIdRef.current = targetImage.id;
+            } else {
+              // 目标图片不存在，正常显示列表
+              data.images.forEach((img: PublicImage) => loadedIdsRef.current.add(img.id));
+              setImages(data.images);
+            }
+            setHasMore(1 < data.pagination.totalPages);
+            setFailedImages(new Set());
+          }
+        } catch (error) {
+          console.error('Failed to fetch gallery:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      // 正常加载
+      fetchGallery(1, sortBy);
+    }
+  }, [isInitialized, sortBy, refreshKey, userToken, searchParams, fetchGallery, fetchSingleImage]);
   
   // 加载更多
   useEffect(() => {
@@ -267,7 +346,7 @@ function GalleryContent() {
     router.replace(newUrl, { scroll: false });
   }, [router]);
   
-  // 根据 URL 参数自动打开图片
+  // 根据 URL 参数自动打开图片（包括初始化时设置的待打开图片）
   useEffect(() => {
     if (!isInitialized || images.length === 0) return;
     
@@ -276,16 +355,21 @@ function GalleryContent() {
       return;
     }
     
+    // 优先处理初始化时设置的待打开图片
+    const pendingId = pendingOpenImageIdRef.current;
     const imageIdFromUrl = searchParams.get('id');
+    const targetId = pendingId || imageIdFromUrl;
     
-    // 如果 URL 有 id 但预览未打开，自动打开
-    if (imageIdFromUrl && !isPreviewOpen) {
-      const image = images.find(img => img.id === imageIdFromUrl);
+    // 如果有目标图片但预览未打开，自动打开
+    if (targetId && !isPreviewOpen) {
+      const image = images.find(img => img.id === targetId);
       if (image) {
         setSelectedImage(image);
         setIsPreviewOpen(true);
         // 记录浏览
         recordView(image);
+        // 清除待打开标记
+        pendingOpenImageIdRef.current = null;
       }
     }
   }, [isInitialized, images, searchParams, isPreviewOpen]);
