@@ -300,21 +300,19 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
               className="absolute inset-0 w-full h-full object-contain select-none"
               style={{
                 opacity: showOriginal ? 0 : 1,
-                transition: 'opacity 0.3s ease-out',
               }}
               draggable={false}
               onLoad={handleThumbnailLoad}
             />
           )}
           
-          {/* 原图（顶层）- 始终加载，加载完成后淡入 */}
+          {/* 原图（顶层）- 始终加载，加载完成后直接覆盖 */}
           <img
             src={src}
             alt={alt}
             className="w-full h-full object-contain select-none relative"
             style={{
               opacity: showOriginal ? 1 : 0,
-              transition: 'opacity 0.3s ease-out',
             }}
             draggable={false}
             onLoad={handleOriginalLoad}
