@@ -1,4 +1,5 @@
-import postgres from 'postgres';
+import pg from 'pg';
+const { Pool } = pg;
 
 // PostgreSQL 连接配置
 interface PostgresConfig {
@@ -10,19 +11,35 @@ interface PostgresConfig {
   ssl?: boolean;
 }
 
-// 查询结果类型
-type QueryResult<T = unknown> = Promise<{ data: T | null; error: Error | null }>;
+// 查询构建器状态
+interface WhereClause {
+  column: string;
+  operator: string;
+  value: unknown;
+  isNot?: boolean;
+}
 
-// 批量查询结果类型（包含 count）
-interface ListResult<T = unknown> {
-  data: T[] | null;
-  error: Error | null;
+interface OrderClause {
+  column: string;
+  direction: 'ASC' | 'DESC';
+}
+
+// 查询结果类型
+interface ListResult {
+  data: Record<string, unknown>[] | null;
+  error: { message: string; code?: string } | null;
   count?: number | null;
 }
 
-// 查询构建器接口（模拟 Supabase）
+// 单条结果类型
+interface SingleResult {
+  data: Record<string, unknown> | null;
+  error: { message: string; code?: string } | null;
+}
+
+// 查询构建器
 interface QueryBuilder {
-  select: (columns?: string) => QueryBuilder;
+  select: (columns: string | string[]) => QueryBuilder;
   insert: (data: Record<string, unknown> | Record<string, unknown>[]) => QueryBuilder;
   update: (data: Record<string, unknown>) => QueryBuilder;
   delete: () => QueryBuilder;
@@ -33,15 +50,11 @@ interface QueryBuilder {
   is: (column: string, value: unknown) => QueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
   limit: (count: number) => QueryBuilder;
-  offset: (count: number) => QueryBuilder;
-  range: (from: number, to: number) => QueryBuilder;
-  single: () => QueryResult;
-  maybeSingle: () => QueryResult;
-  then: (resolve: (result: ListResult) => void) => void;
+  range: (start: number, end: number) => QueryBuilder;
+  single: () => Promise<SingleResult>;
+  maybeSingle: () => Promise<SingleResult>;
+  execute: () => Promise<ListResult>;
 }
-
-// 全局连接实例
-let _sql: postgres.Sql | null = null;
 
 // 获取 PostgreSQL 连接配置
 function getPostgresConfig(): PostgresConfig {
@@ -78,54 +91,44 @@ function getPostgresConfig(): PostgresConfig {
       port: parseInt(parsed.port) || 5432,
       database: parsed.pathname.slice(1) || 'postgres',
       username: parsed.username || 'postgres',
-      password: decodeURIComponent(parsed.password) || '',
+      password: decodeURIComponent(parsed.password) || 'postgres',
       ssl: parsed.searchParams.get('sslmode') === 'require',
     };
-  } catch (parseError) {
-    console.error('[DB] Failed to parse database URL:', url, parseError);
-    throw new Error(`Invalid database URL format: ${url}. Expected format: postgresql://user:password@host:port/database`);
+  } catch {
+    throw new Error(`Invalid database URL format: ${url}`);
   }
 }
 
-// 获取数据库连接
-function getSqlConnection(): postgres.Sql {
-  if (!_sql) {
+// 全局连接池
+let pool: pg.Pool | null = null;
+
+function getPool(): pg.Pool {
+  if (!pool) {
     const config = getPostgresConfig();
-    console.log(`[DB] Connecting to PostgreSQL at ${config.host}:${config.port}/${config.database}`);
-    
-    _sql = postgres({
+    pool = new Pool({
       host: config.host,
       port: config.port,
       database: config.database,
-      username: config.username,
+      user: config.username,
       password: config.password,
-      ssl: config.ssl ? 'prefer' : false,
+      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
       max: 10,
-      idle_timeout: 20,
-      connect_timeout: 30,
-      onnotice: (notice) => {
-        console.log('[DB] Notice:', notice.message);
-      },
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
     });
   }
-  return _sql;
+  return pool;
 }
 
 // 创建查询构建器
-function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
-  type WhereClause = {
-    column: string;
-    operator: string;
-    value: unknown;
-    isNot?: boolean;
-  };
-  
+function createQueryBuilder(table: string): QueryBuilder {
   const state: {
     columns: string[];
     wheres: WhereClause[];
-    orders: { column: string; direction: 'ASC' | 'DESC' }[];
+    orders: OrderClause[];
     limitCount?: number;
-    offsetCount?: number;
+    rangeStart?: number;
+    rangeEnd?: number;
     insertData?: Record<string, unknown> | Record<string, unknown>[];
     updateData?: Record<string, unknown>;
     isDelete: boolean;
@@ -163,13 +166,11 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
       // 处理 IN 操作符
       if (w.operator === 'IN') {
         const values = w.value as unknown[];
-        const placeholders = values.map(() => {
-          params.push(null); // 占位，下面会重新填充
-          return `$${paramIndex++}`;
+        const placeholders: string[] = [];
+        values.forEach(v => {
+          params.push(v);
+          placeholders.push(`$${paramIndex++}`);
         });
-        // 清空并重新填充 params
-        const startIndex = params.length - values.length;
-        params.splice(startIndex, values.length, ...values);
         
         return `${notPrefix}${w.column} IN (${placeholders.join(', ')})`;
       }
@@ -189,7 +190,7 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
     try {
       let query = '';
       const params: unknown[] = [];
-      let countResult: number | null = null;
+      let finalCount: number | null = null;
       
       if (state.insertData) {
         const data = Array.isArray(state.insertData) ? state.insertData : [state.insertData];
@@ -218,40 +219,55 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
         // 如果需要 count，先执行 count 查询
         if (state.needCount) {
           const countQuery = `SELECT COUNT(*) as count FROM ${table}${whereSql}`;
-          const countRes = await sql.unsafe(countQuery, whereParams as postgres.ParameterOrJSON<never>[]);
-          countResult = Number((countRes[0] as unknown as { count: string | bigint }).count);
+          const countRes = await getPool().query(countQuery, whereParams);
+          finalCount = parseInt(countRes.rows[0]?.count || '0');
         }
         
-        let orderSql = '';
-        if (state.orders.length > 0) {
-          orderSql = ` ORDER BY ${state.orders.map(o => `${o.column} ${o.direction}`).join(', ')}`;
-        }
+        // 构建列选择
+        const columns = state.columns.join(', ');
         
+        // 构建 ORDER BY 子句
+        const orderSql = state.orders.length > 0 
+          ? ` ORDER BY ${state.orders.map(o => `${o.column} ${o.direction}`).join(', ')}`
+          : '';
+        
+        // 构建 LIMIT 和 OFFSET
         let limitSql = '';
-        if (state.limitCount) {
+        if (state.limitCount !== undefined) {
           limitSql = ` LIMIT ${state.limitCount}`;
         }
-        
-        let offsetSql = '';
-        if (state.offsetCount) {
-          offsetSql = ` OFFSET ${state.offsetCount}`;
+        if (state.rangeStart !== undefined && state.rangeEnd !== undefined) {
+          const limit = state.rangeEnd - state.rangeStart + 1;
+          limitSql = ` LIMIT ${limit} OFFSET ${state.rangeStart}`;
         }
         
-        query = `SELECT ${state.columns.join(', ')} FROM ${table}${whereSql}${orderSql}${limitSql}${offsetSql}`;
+        query = `SELECT ${columns} FROM ${table}${whereSql}${orderSql}${limitSql}`;
         params.push(...whereParams);
       }
       
-      const result = await sql.unsafe(query, params as postgres.ParameterOrJSON<never>[]);
-      return { data: result as unknown[], error: null, count: countResult };
-    } catch (error) {
-      console.error('[DB] Query error:', error);
-      return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
+      const result = await getPool().query(query, params);
+      
+      return {
+        data: result.rows,
+        error: null,
+        count: finalCount ?? result.rowCount,
+      };
+    } catch (err) {
+      const error = err as Error;
+      console.error('PostgreSQL query error:', error.message);
+      return {
+        data: null,
+        error: { message: error.message, code: (error as { code?: string }).code },
+        count: null,
+      };
     }
   };
   
   const builder: QueryBuilder = {
-    select: (columns?: string) => {
-      state.columns = columns ? columns.split(',').map(c => c.trim()) : ['*'];
+    select: (columns: string | string[]) => {
+      state.columns = typeof columns === 'string' 
+        ? columns.split(',').map(c => c.trim())
+        : columns;
       return builder;
     },
     
@@ -318,76 +334,46 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
       return builder;
     },
     
-    offset: (count: number) => {
-      state.offsetCount = count;
-      return builder;
-    },
-    
-    range: (from: number, to: number) => {
-      state.offsetCount = from;
-      state.limitCount = to - from + 1;
-      state.needCount = true;
+    range: (start: number, end: number) => {
+      state.rangeStart = start;
+      state.rangeEnd = end;
       return builder;
     },
     
     single: async () => {
       state.limitCount = 1;
       const result = await execute();
-      if (result.error) {
-        return { data: null, error: result.error };
-      }
-      if (!result.data || result.data.length === 0) {
-        return { data: null, error: new Error('No rows found') };
-      }
-      return { data: result.data[0], error: null };
+      return {
+        data: result.data?.[0] || null,
+        error: result.error,
+      };
     },
     
     maybeSingle: async () => {
       state.limitCount = 1;
       const result = await execute();
-      if (result.error) {
-        return { data: null, error: result.error };
-      }
-      return { data: result.data?.[0] ?? null, error: null };
+      return {
+        data: result.data?.[0] || null,
+        error: result.error,
+      };
     },
     
-    then: (resolve) => {
-      execute().then(resolve);
-    },
+    execute,
   };
   
   return builder;
 }
 
-// 数据库客户端接口
-interface DatabaseClient {
-  from: (table: string) => QueryBuilder;
-  rpc: (fn: string, params?: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
-}
-
-// 获取数据库客户端
-function getPostgresClient(): DatabaseClient {
-  const sql = getSqlConnection();
-  
+// 创建 PostgreSQL 客户端
+export function createPostgresClient() {
   return {
-    from: (table: string) => createQueryBuilder(sql, table),
-    
-    rpc: async (fn: string, params?: Record<string, unknown>) => {
-      try {
-        const sql = getSqlConnection();
-        
-        const paramNames = params ? Object.keys(params) : [];
-        const paramValues = params ? Object.values(params) : [];
-        
-        const query = `SELECT * FROM ${fn}(${paramNames.map((_, i) => `$${i + 1}`).join(', ')})`;
-        const result = await sql.unsafe(query, paramValues as postgres.ParameterOrJSON<never>[]);
-        
-        return { data: result[0], error: null };
-      } catch (error) {
-        return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
-      }
+    from: (table: string) => createQueryBuilder(table),
+    rpc: async (fn: string, _params?: Record<string, unknown>) => {
+      // RPC 调用实现（简化版本）
+      throw new Error(`RPC function ${fn} is not supported in PostgreSQL direct mode`);
     },
   };
 }
 
-export { getPostgresClient, getSqlConnection };
+// 导出类型
+export type PostgresClient = ReturnType<typeof createPostgresClient>;

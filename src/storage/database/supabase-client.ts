@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { getPostgresClient } from './postgres-client';
+import { createPostgresClient } from './postgres-client';
 
 let envLoaded = false;
 
@@ -119,7 +119,7 @@ function getSupabaseCredentials(): SupabaseCredentials {
 let _supabaseClient: SupabaseClient | null = null;
 
 // 数据库客户端类型（Supabase 或 PostgreSQL）
-type DatabaseClient = SupabaseClient | ReturnType<typeof getPostgresClient>;
+type DatabaseClient = SupabaseClient | ReturnType<typeof createPostgresClient>;
 
 // 获取数据库客户端（自动检测 Supabase Cloud 或纯 PostgreSQL）
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -160,7 +160,7 @@ function getSupabaseClient(token?: string): any {
   }
   
   // 使用纯 PostgreSQL 连接
-  return getPostgresClient();
+  return createPostgresClient();
 }
 
 export { loadEnv, getSupabaseCredentials, getSupabaseClient };
