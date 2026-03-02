@@ -161,7 +161,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [importToken, setImportToken] = useState('');
+  const [importUserId, setImportUserId] = useState('');
   const [importError, setImportError] = useState('');
   
   // 提示词模板状态
@@ -211,7 +211,7 @@ export function SettingsPanel({
       // 打开时重置为空，不显示实际 key
       setGeminiConfig({ ...apiConfig.providers.gemini, apiKey: '' });
       setOpenaiConfig({ ...apiConfig.providers.openai, apiKey: '' });
-      setImportToken('');
+      setImportUserId('');
       setImportError('');
       // 加载提示词模板
       setPromptTemplates(loadPromptTemplates());
@@ -262,31 +262,31 @@ export function SettingsPanel({
     }
   };
   
-  // 导入用户 token（用于在其他设备恢复身份）
-  const handleImportToken = () => {
-    const token = importToken.trim();
+  // 导入用户 ID（用于在其他设备恢复身份）
+  const handleImportUserId = () => {
+    const newUserId = importUserId.trim();
     
-    // 验证 token 格式：
+    // 验证用户 ID 格式：
     // 1. UUID 格式（36位，如 e83f0e63-38ee-4552-b65e-43ac9c011e40）
     // 2. 64 位十六进制（旧格式，向后兼容）
-    const isUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(token);
-    const isHex64 = /^[a-f0-9]{64}$/i.test(token);
+    const isUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(newUserId);
+    const isHex64 = /^[a-f0-9]{64}$/i.test(newUserId);
     
     if (!isUUID && !isHex64) {
-      setImportError('无效的 Token 格式，应为 UUID 格式（如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）');
+      setImportError('无效的用户 ID 格式，应为 UUID 格式（如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）');
       return;
     }
     
     // 保存到 localStorage
-    localStorage.setItem('ai-image-user-token', token);
+    localStorage.setItem('ai-image-user-token', newUserId);
     
     // 通知父组件更新
     if (onUpdateUserId) {
-      onUpdateUserId(token);
+      onUpdateUserId(newUserId);
     }
     
     // 清空输入
-    setImportToken('');
+    setImportUserId('');
     setImportError('');
     
     // 提示成功
@@ -472,18 +472,18 @@ export function SettingsPanel({
                   </p>
                   <div className="flex gap-2">
                     <Input
-                      value={importToken}
+                      value={importUserId}
                       onChange={(e) => {
-                        setImportToken(e.target.value);
+                        setImportUserId(e.target.value);
                         setImportError('');
                       }}
-                      placeholder="粘贴 64 位 Token..."
+                      placeholder="粘贴用户 ID..."
                       className="font-mono text-xs"
                     />
                     <Button
                       variant="outline"
-                      onClick={handleImportToken}
-                      disabled={!importToken.trim()}
+                      onClick={handleImportUserId}
+                      disabled={!importUserId.trim()}
                     >
                       导入
                     </Button>

@@ -11,7 +11,7 @@ export async function GET() {
     // 尝试执行一个简单的查询
     const { data, error } = await client
       .from('users')
-      .select('token')
+      .select('id')
       .limit(1);
     
     const duration = Date.now() - startTime;
