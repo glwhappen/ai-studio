@@ -24,7 +24,6 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
   const [pinchStartScale, setPinchStartScale] = useState(1); // 双指缩放开始时的缩放比例
   
   // 缩略图和原图加载状态
-  const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   const [isOriginalLoaded, setIsOriginalLoaded] = useState(false);
   const originalImageRef = useRef<HTMLImageElement | null>(null);
 
@@ -39,50 +38,60 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
     if (!isOpen) {
       resetState();
       setIsOriginalLoaded(false);
-      // 如果有缩略图，先显示缩略图
-      if (thumbnailSrc) {
-        setDisplaySrc(thumbnailSrc);
-      } else {
-        setDisplaySrc(null);
-      }
     }
-  }, [isOpen, resetState, thumbnailSrc]);
+  }, [isOpen, resetState]);
 
-  // 加载原图
+  // 加载原图（预加载，不改变显示）
   useEffect(() => {
     if (!isOpen || !src || isOriginalLoaded) return;
     
-    // 如果没有缩略图，直接显示原图
+    // 如果没有缩略图，直接视为已加载
     if (!thumbnailSrc) {
-      setDisplaySrc(src);
       setIsOriginalLoaded(true);
       return;
     }
     
-    // 先显示缩略图
-    setDisplaySrc(thumbnailSrc);
-    
-    // 后台加载原图
+    // 后台预加载原图
     const img = new Image();
     img.onload = () => {
-      setDisplaySrc(src);
       setIsOriginalLoaded(true);
     };
     img.onerror = () => {
-      // 原图加载失败，保持缩略图
       console.error('Failed to load original image:', src);
     };
     img.src = src;
     originalImageRef.current = img;
     
     return () => {
-      // 清理
       if (originalImageRef.current) {
         originalImageRef.current.onload = null;
         originalImageRef.current.onerror = null;
       }
     };
   }, [isOpen, src, thumbnailSrc, isOriginalLoaded]);
+
+  // 打开时禁用 body 滚动，防止滚动条闪烁
+  useEffect(() => {
+    if (isOpen) {
+      // 记录当前滚动位置
+      const scrollY = window.scrollY;
+      // 禁用滚动
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      return () => {
+        // 恢复滚动
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        // 恢复滚动位置
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
 
   // ESC 关闭
   useEffect(() => {
@@ -258,9 +267,9 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
         </Button>
       </div>
 
-      {/* 图片 */}
+      {/* 图片容器 */}
       <div
-        className="w-full h-full flex items-center justify-center overflow-hidden"
+        className="w-full h-full flex items-center justify-center overflow-hidden relative"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -271,33 +280,52 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
         onTouchEnd={handleTouchEnd}
         onDoubleClick={handleDoubleClick}
       >
-        {displaySrc ? (
+        {/* 图片包装器 - 共享 transform */}
+        <div
+          className="relative max-w-full max-h-full"
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+            transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out',
+            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (scale === 1 && !isDragging && !isPinching && onImageClick) {
+              handleImageClick();
+            }
+          }}
+        >
+          {/* 缩略图（底层）- 始终显示，作为原图加载前的占位 */}
+          {thumbnailSrc && (
+            <img
+              src={thumbnailSrc}
+              alt={alt}
+              className="max-w-full max-h-full object-contain select-none absolute inset-0"
+              style={{
+                opacity: isOriginalLoaded ? 0 : 1,
+                transition: 'opacity 0.3s ease-out',
+              }}
+              draggable={false}
+            />
+          )}
+          
+          {/* 原图（顶层）- 加载完成后淡入覆盖 */}
           <img
-            src={displaySrc}
+            src={src}
             alt={alt}
-            className="max-w-full max-h-full object-contain select-none"
+            className="max-w-full max-h-full object-contain select-none relative"
             style={{
-              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-              transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out, opacity 0.3s ease-out',
-              cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
-              // 原图加载后稍微淡入，实现平滑过渡
-              opacity: isOriginalLoaded ? 1 : 0.95,
+              opacity: isOriginalLoaded ? 1 : (thumbnailSrc ? 0 : 1),
+              transition: 'opacity 0.3s ease-out',
             }}
             draggable={false}
-            onClick={(e) => {
-              e.stopPropagation();
-              // 缩放为1时，点击图片触发回调
-              if (scale === 1 && !isDragging && !isPinching && onImageClick) {
-                handleImageClick();
+            onLoad={() => {
+              if (thumbnailSrc) {
+                setIsOriginalLoaded(true);
               }
             }}
           />
-        ) : (
-          // 加载中占位
-          <div className="flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          </div>
-        )}
+        </div>
       </div>
 
       {/* 底部提示 */}

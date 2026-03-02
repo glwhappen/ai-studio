@@ -211,6 +211,12 @@ function GalleryContent() {
   useEffect(() => {
     if (!isInitialized) return;
     
+    // 如果是关闭预览导致的 URL 变化，跳过重新加载
+    if (isClosingRef.current) {
+      isClosingRef.current = false;
+      return;
+    }
+    
     const imageIdFromUrl = searchParams.get('id');
     
     // 如果有 URL 参数 id，先单独获取这张图片
