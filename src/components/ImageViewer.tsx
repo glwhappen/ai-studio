@@ -193,14 +193,6 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
     }
   }, []);
 
-  // 缩略图加载完成（如果没有原图，用缩略图尺寸）
-  const handleThumbnailLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    if (!imageSize && !thumbnailSrc) {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-    }
-  }, [imageSize, thumbnailSrc]);
-
   if (!isOpen) return null;
 
   // 计算显示尺寸
@@ -292,8 +284,8 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
             }
           }}
         >
-          {/* 缩略图（底层）- 有缩略图时显示 */}
-          {thumbnailSrc && (
+          {/* 缩略图（底层）- 有缩略图且与原图不同时显示 */}
+          {thumbnailSrc && thumbnailSrc !== src && (
             <img
               src={thumbnailSrc}
               alt={alt}
@@ -302,17 +294,16 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
                 opacity: showOriginal ? 0 : 1,
               }}
               draggable={false}
-              onLoad={handleThumbnailLoad}
             />
           )}
           
-          {/* 原图（顶层）- 始终加载，加载完成后直接覆盖 */}
+          {/* 原图（顶层）- 如果与缩略图相同则直接显示 */}
           <img
             src={src}
             alt={alt}
             className="w-full h-full object-contain select-none relative"
             style={{
-              opacity: showOriginal ? 1 : 0,
+              opacity: showOriginal || thumbnailSrc === src ? 1 : 0,
             }}
             draggable={false}
             onLoad={handleOriginalLoad}
@@ -320,8 +311,8 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
         </div>
       </div>
 
-      {/* 加载提示 */}
-      {thumbnailSrc && !showOriginal && (
+      {/* 加载提示 - 只有两张图不同时才显示 */}
+      {thumbnailSrc && thumbnailSrc !== src && !showOriginal && (
         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 text-white/60 text-sm bg-black/50 px-3 py-1.5 rounded-full">
           正在加载高清图片...
         </div>

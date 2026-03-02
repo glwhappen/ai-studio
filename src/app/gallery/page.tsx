@@ -842,7 +842,7 @@ function GalleryContent() {
         alt={selectedImage?.prompt || ''}
         isOpen={isPreviewOpen}
         onClose={handleClosePreview}
-        thumbnailSrc={selectedImage?.thumbnail_url || undefined}
+        thumbnailSrc={selectedImage?.thumbnail_url || selectedImage?.image_url}
       />
 
       {/* 底部操作栏 - 使用统一组件 */}
