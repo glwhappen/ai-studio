@@ -7,8 +7,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# 安装 sharp 所需的依赖
-RUN apk add --no-cache vips-dev
+# 安装 sharp 和构建所需的依赖
+RUN apk add --no-cache vips-dev python3 make g++
 
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -24,8 +24,8 @@ RUN pnpm install --frozen-lockfile --prod
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# 安装 bash 和 sharp 依赖（Alpine 默认只有 sh）
-RUN apk add --no-cache bash vips-dev
+# 安装 bash、sharp 和构建所需的依赖
+RUN apk add --no-cache bash vips-dev python3 make g++
 
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
