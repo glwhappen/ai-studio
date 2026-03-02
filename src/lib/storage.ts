@@ -30,10 +30,63 @@ function getStorageConfig(): StorageConfig {
 }
 
 // 检测是否使用 COZE 托管存储
+// 条件：没有配置 S3 凭据 且 存在 COZE_WORKLOAD_IDENTITY_API_KEY
 function isCozeManagedStorage(): boolean {
   const config = getStorageConfig();
-  // 如果没有 accessKey/secretKey，说明使用 COZE 托管存储
-  return !config.accessKey || !config.secretKey;
+  const hasS3Credentials = config.accessKey && config.secretKey;
+  const hasCozeIdentity = !!process.env.COZE_WORKLOAD_IDENTITY_API_KEY;
+  
+  // 如果配置了 S3 凭据，使用自建 S3
+  if (hasS3Credentials) {
+    return false;
+  }
+  
+  // 如果没有 S3 凭据但有 COZE 身份，使用 COZE 托管存储
+  if (hasCozeIdentity) {
+    return true;
+  }
+  
+  // 都没有，返回 false（后续会抛出错误）
+  return false;
+}
+
+// 检查存储配置是否有效
+function validateStorageConfig(): { valid: boolean; error?: string } {
+  const config = getStorageConfig();
+  const hasS3Credentials = config.accessKey && config.secretKey;
+  const hasCozeIdentity = !!process.env.COZE_WORKLOAD_IDENTITY_API_KEY;
+  
+  if (hasS3Credentials) {
+    return { valid: true };
+  }
+  
+  if (hasCozeIdentity) {
+    return { valid: true };
+  }
+  
+  // 都没有，返回错误提示
+  return {
+    valid: false,
+    error: `Storage configuration incomplete. For standalone deployment, please configure S3 credentials:
+  - S3_ENDPOINT_URL (or COZE_BUCKET_ENDPOINT_URL): Your S3 endpoint URL
+  - S3_BUCKET_NAME (or COZE_BUCKET_NAME): Your bucket name
+  - S3_ACCESS_KEY: Your S3 access key
+  - S3_SECRET_KEY: Your S3 secret key
+  - S3_REGION: Your S3 region (optional, default: us-east-1)
+
+Example for MinIO:
+  S3_ENDPOINT_URL=http://minio:9000
+  S3_BUCKET_NAME=ai-studio
+  S3_ACCESS_KEY=minioadmin
+  S3_SECRET_KEY=minioadmin
+
+Example for AWS S3:
+  S3_ENDPOINT_URL=https://s3.amazonaws.com
+  S3_BUCKET_NAME=your-bucket-name
+  S3_ACCESS_KEY=your-access-key
+  S3_SECRET_KEY=your-secret-key
+  S3_REGION=us-east-1`
+  };
 }
 
 // 创建 S3 客户端（用于自建 MinIO/S3）
@@ -78,6 +131,12 @@ async function uploadFile(
   buffer: Buffer, 
   contentType: string
 ): Promise<string> {
+  // 验证存储配置
+  const validation = validateStorageConfig();
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+  
   // COZE 托管存储：使用 coze-coding-dev-sdk
   if (isCozeManagedStorage()) {
     const { S3Storage } = await import("coze-coding-dev-sdk");
@@ -173,6 +232,12 @@ export async function generateAndUploadThumbnail(
 
 // 获取图片的签名 URL
 export async function getImageUrl(key: string, expireTime = 86400 * 30): Promise<string> {
+  // 验证存储配置
+  const validation = validateStorageConfig();
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+  
   // COZE 托管存储：使用 coze-coding-dev-sdk
   if (isCozeManagedStorage()) {
     try {

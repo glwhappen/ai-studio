@@ -25,22 +25,21 @@
 
 #### 方式一：独立部署（推荐）
 
-只部署前端，使用 Coze 托管的数据库和对象存储。
+只部署前端，使用自己的数据库和对象存储。
 
 ```bash
 # 1. 复制环境变量模板
 cp .env.standalone.example .env
 
-# 2. 编辑 .env，填写 Coze 环境变量
-#    从 Coze 环境获取：
-#    - COZE_SUPABASE_URL
-#    - COZE_SUPABASE_ANON_KEY
-#    - COZE_BUCKET_ENDPOINT_URL
-#    - COZE_BUCKET_NAME
+# 2. 编辑 .env，配置以下必需项：
+#    - 数据库：COZE_SUPABASE_URL, COZE_SUPABASE_ANON_KEY
+#    - 对象存储：S3_ENDPOINT_URL, S3_BUCKET_NAME, S3_ACCESS_KEY, S3_SECRET_KEY
 
 # 3. 启动服务
 docker-compose -f docker-compose.standalone.yml up -d
 ```
+
+**注意：独立部署必须配置自己的 S3 兼容存储**（AWS S3、MinIO、阿里云 OSS 等），无法使用 Coze 托管的对象存储。
 
 #### 方式二：完整部署（自建所有服务）
 
@@ -109,17 +108,33 @@ COZE_SUPABASE_ANON_KEY=your-anon-key
 
 ### 对象存储配置
 
-```bash
-# MinIO（Docker Compose 默认）
-COZE_BUCKET_ENDPOINT_URL=http://minio:9000
-COZE_BUCKET_NAME=ai-images
-COZE_BUCKET_ACCESS_KEY=minioadmin
-COZE_BUCKET_SECRET_KEY=minioadmin123
+独立部署需要配置自己的 S3 兼容存储：
 
+```bash
 # AWS S3
-# COZE_BUCKET_ENDPOINT_URL=https://s3.amazonaws.com
-# COZE_BUCKET_ACCESS_KEY=your-access-key
-# COZE_BUCKET_SECRET_KEY=your-secret-key
+S3_ENDPOINT_URL=https://s3.amazonaws.com
+S3_BUCKET_NAME=your-bucket-name
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
+S3_REGION=us-east-1
+
+# 阿里云 OSS
+S3_ENDPOINT_URL=https://oss-cn-hangzhou.aliyuncs.com
+S3_BUCKET_NAME=your-bucket-name
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
+
+# MinIO（本地或自建）
+S3_ENDPOINT_URL=http://minio:9000
+S3_BUCKET_NAME=ai-images
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+
+# 腾讯云 COS
+S3_ENDPOINT_URL=https://cos.ap-guangzhou.myqcloud.com
+S3_BUCKET_NAME=your-bucket-name
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
 ```
 
 ### AI 模型配置
