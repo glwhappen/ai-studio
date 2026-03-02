@@ -27,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle, Wand2, Pencil, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -307,8 +308,8 @@ function HomeContent() {
     }
   };
 
-  // 直接生成（后台改写并绘图，不关闭对话框，不修改原提示词）
-  const handleDirectGenerate = async () => {
+  // 直接生成（后台改写并绘图，立即返回，不阻塞用户操作）
+  const handleDirectGenerate = () => {
     if (!prompt.trim() || !rewriteInstruction.trim() || isDirectGenerating) return;
     
     const currentInstruction = rewriteInstruction;
@@ -321,75 +322,92 @@ function HomeContent() {
     }]);
     setIsDirectGenerating(true);
     
-    try {
-      // 1. 先改写提示词
-      const templates = loadPromptTemplates();
-      const llmConfig = loadPromptLLMConfig();
-      
-      const rewriteResponse = await fetch('/api/prompt/enhance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt, 
-          mode: 'rewrite', 
-          instruction: currentInstruction,
-          rewriteSystemPrompt: templates.rewriteSystemPrompt,
-          rewriteUserPrompt: templates.rewriteUserPrompt,
-          ...llmConfig,
-        }),
-      });
-      
-      const rewriteData = await rewriteResponse.json();
-      if (!rewriteData.success) {
+    // 立即关闭对话框，让用户可以继续操作
+    setIsRewriteDialogOpen(false);
+    
+    // 通知用户任务已提交
+    toast.success('任务已提交', {
+      description: '正在后台改写并生成图片，完成后会自动显示在"我的作品"中',
+    });
+    
+    // 后台执行改写和生成
+    (async () => {
+      try {
+        // 1. 先改写提示词
+        const templates = loadPromptTemplates();
+        const llmConfig = loadPromptLLMConfig();
+        
+        const rewriteResponse = await fetch('/api/prompt/enhance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            prompt, 
+            mode: 'rewrite', 
+            instruction: currentInstruction,
+            rewriteSystemPrompt: templates.rewriteSystemPrompt,
+            rewriteUserPrompt: templates.rewriteUserPrompt,
+            ...llmConfig,
+          }),
+        });
+        
+        const rewriteData = await rewriteResponse.json();
+        if (!rewriteData.success) {
+          setDirectGenerateResults(prev => prev.map((r, i) => 
+            i === resultIndex ? { ...r, status: 'error', error: rewriteData.error || '改写失败' } : r
+          ));
+          toast.error('改写失败', { description: rewriteData.error || '请稍后重试' });
+          return;
+        }
+        
+        const enhancedPrompt = rewriteData.enhancedPrompt;
+        
+        // 2. 提交生成任务（后台执行）
+        const currentConfig = getCurrentProviderConfig();
+        const submitResponse = await fetch('/api/images/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: enhancedPrompt,
+            model: apiConfig.selectedModel,
+            provider: currentProvider,
+            baseUrl: currentConfig.baseUrl,
+            apiKey: currentConfig.apiKey,
+            userId: userId,
+            isPublic: autoPublic,
+            aspectRatio: apiConfig.aspectRatio,
+            imageSize: apiConfig.imageSize,
+            size: apiConfig.openaiSize,
+            referenceImage: referenceImage?.base64,
+            referenceImageMime: referenceImage?.mimeType,
+          }),
+        });
+        
+        const submitData = await submitResponse.json();
+        
+        if (submitData.success) {
+          setDirectGenerateResults(prev => prev.map((r, i) => 
+            i === resultIndex ? { ...r, status: 'success' } : r
+          ));
+          // 刷新图片列表
+          fetchImages();
+          toast.success('图片生成任务已提交', {
+            description: '正在后台生成中，完成后会显示在"我的作品"列表',
+          });
+        } else {
+          setDirectGenerateResults(prev => prev.map((r, i) => 
+            i === resultIndex ? { ...r, status: 'error', error: submitData.error || '生成失败' } : r
+          ));
+          toast.error('生成失败', { description: submitData.error || '请稍后重试' });
+        }
+      } catch (err) {
         setDirectGenerateResults(prev => prev.map((r, i) => 
-          i === resultIndex ? { ...r, status: 'error', error: rewriteData.error || '改写失败' } : r
+          i === resultIndex ? { ...r, status: 'error', error: '请求失败' } : r
         ));
-        return;
+        toast.error('请求失败', { description: '网络错误，请稍后重试' });
+      } finally {
+        setIsDirectGenerating(false);
       }
-      
-      const enhancedPrompt = rewriteData.enhancedPrompt;
-      
-      // 2. 提交生成任务（后台执行）
-      const currentConfig = getCurrentProviderConfig();
-      const submitResponse = await fetch('/api/images/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: enhancedPrompt,
-          model: apiConfig.selectedModel,
-          provider: currentProvider,
-          baseUrl: currentConfig.baseUrl,
-          apiKey: currentConfig.apiKey,
-          userId: userId,
-          isPublic: autoPublic,
-          aspectRatio: apiConfig.aspectRatio,
-          imageSize: apiConfig.imageSize,
-          size: apiConfig.openaiSize,
-          referenceImage: referenceImage?.base64,
-          referenceImageMime: referenceImage?.mimeType,
-        }),
-      });
-      
-      const submitData = await submitResponse.json();
-      
-      if (submitData.success) {
-        setDirectGenerateResults(prev => prev.map((r, i) => 
-          i === resultIndex ? { ...r, status: 'success' } : r
-        ));
-        // 刷新图片列表
-        fetchImages();
-      } else {
-        setDirectGenerateResults(prev => prev.map((r, i) => 
-          i === resultIndex ? { ...r, status: 'error', error: submitData.error || '生成失败' } : r
-        ));
-      }
-    } catch (err) {
-      setDirectGenerateResults(prev => prev.map((r, i) => 
-        i === resultIndex ? { ...r, status: 'error', error: '请求失败' } : r
-      ));
-    } finally {
-      setIsDirectGenerating(false);
-    }
+    })();
   };
 
   // 清空提示词
