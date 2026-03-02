@@ -3,31 +3,15 @@
 # 使用 Debian 基础镜像，避免 Alpine 兼容性问题
 # ============================================
 
-# 阶段 1: 依赖安装
-FROM node:20-slim AS deps
-WORKDIR /app
-
-# 安装 pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# 复制依赖配置文件
-COPY package.json pnpm-lock.yaml ./
-
-# 安装所有依赖（包括 devDependencies，构建需要）
-RUN pnpm install --frozen-lockfile
-
-# ============================================
-# 阶段 2: 构建
+# 阶段 1: 构建（依赖安装 + 构建）
 FROM node:20-slim AS builder
 WORKDIR /app
 
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 复制依赖配置文件
+# 复制依赖配置文件并安装依赖
 COPY package.json pnpm-lock.yaml ./
-
-# 安装所有依赖（包括 devDependencies）
 RUN pnpm install --frozen-lockfile
 
 # 复制源代码
@@ -41,7 +25,7 @@ ENV NODE_ENV=production
 RUN npx next build
 
 # ============================================
-# 阶段 3: 运行
+# 阶段 2: 运行
 FROM node:20-slim AS runner
 WORKDIR /app
 
