@@ -266,9 +266,14 @@ export function SettingsPanel({
   const handleImportToken = () => {
     const token = importToken.trim();
     
-    // 验证 token 格式（64 位十六进制）
-    if (!/^[a-f0-9]{64}$/i.test(token)) {
-      setImportError('无效的 Token 格式，应为 64 位十六进制字符');
+    // 验证 token 格式：
+    // 1. UUID 格式（36位，如 e83f0e63-38ee-4552-b65e-43ac9c011e40）
+    // 2. 64 位十六进制（旧格式，向后兼容）
+    const isUUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(token);
+    const isHex64 = /^[a-f0-9]{64}$/i.test(token);
+    
+    if (!isUUID && !isHex64) {
+      setImportError('无效的 Token 格式，应为 UUID 格式（如 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）');
       return;
     }
     
