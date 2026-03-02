@@ -45,10 +45,15 @@ let _sql: postgres.Sql | null = null;
 
 // 获取 PostgreSQL 连接配置
 function getPostgresConfig(): PostgresConfig {
-  const url = process.env.COZE_SUPABASE_URL || process.env.DATABASE_URL;
+  let url = process.env.COZE_SUPABASE_URL || process.env.DATABASE_URL;
   
   if (!url) {
     throw new Error('Database URL is not set. Please set COZE_SUPABASE_URL or DATABASE_URL in your environment variables.');
+  }
+  
+  // 如果 URL 不包含协议，添加 postgresql:// 前缀
+  if (!url.includes('://')) {
+    url = `postgresql://${url}`;
   }
   
   // 解析 PostgreSQL 连接 URL
@@ -69,7 +74,7 @@ function getPostgresConfig(): PostgresConfig {
       };
     }
     
-    // 处理 postgresql:// 格式
+    // 处理 postgresql:// 或 postgres:// 格式
     return {
       host: parsed.hostname,
       port: parseInt(parsed.port) || 5432,
@@ -78,8 +83,9 @@ function getPostgresConfig(): PostgresConfig {
       password: decodeURIComponent(parsed.password) || '',
       ssl: parsed.searchParams.get('sslmode') === 'require',
     };
-  } catch {
-    throw new Error(`Invalid database URL format: ${url}`);
+  } catch (parseError) {
+    console.error('[DB] Failed to parse database URL:', url, parseError);
+    throw new Error(`Invalid database URL format: ${url}. Expected format: postgresql://user:password@host:port/database`);
   }
 }
 
@@ -87,6 +93,8 @@ function getPostgresConfig(): PostgresConfig {
 function getSqlConnection(): postgres.Sql {
   if (!_sql) {
     const config = getPostgresConfig();
+    console.log(`[DB] Connecting to PostgreSQL at ${config.host}:${config.port}/${config.database}`);
+    
     _sql = postgres({
       host: config.host,
       port: config.port,
@@ -96,7 +104,11 @@ function getSqlConnection(): postgres.Sql {
       ssl: config.ssl ? 'prefer' : false,
       max: 10,
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: 30, // 增加连接超时时间
+      // 连接错误处理
+      onnotice: (notice) => {
+        console.log('[DB] Notice:', notice.message);
+      },
     });
   }
   return _sql;

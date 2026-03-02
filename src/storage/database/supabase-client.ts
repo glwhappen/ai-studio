@@ -8,9 +8,20 @@ interface SupabaseCredentials {
   anonKey: string;
 }
 
-// 检测是否是 Supabase Cloud
-function isSupabaseCloud(url: string): boolean {
-  return url.includes('.supabase.co') || url.includes('.supabase.in');
+// 检测是否应该使用 Supabase REST API（而不是 PostgreSQL 直连）
+// Supabase REST API 地址格式：https://xxx.supabase.co 或 https://xxx.supabase.in
+// PostgreSQL 直连地址：任何其他格式（包括端口 5432 或非 HTTPS）
+function shouldUseSupabaseRestApi(url: string): boolean {
+  // 只有当 URL 是 HTTPS 且包含典型的 Supabase Cloud 域名时才使用 REST API
+  const isHttps = url.startsWith('https://');
+  const isSupabaseCloud = url.includes('.supabase.co') || url.includes('.supabase.in');
+  
+  // 如果是 PostgreSQL 连接字符串（postgresql://）或包含端口 5432，使用 PostgreSQL 客户端
+  if (url.startsWith('postgresql://') || url.includes(':5432')) {
+    return false;
+  }
+  
+  return isHttps && isSupabaseCloud;
 }
 
 function loadEnv(): void {
@@ -104,9 +115,9 @@ type DatabaseClient = SupabaseClient | ReturnType<typeof getPostgresClient>;
 function getSupabaseClient(token?: string): any {
   const { url, anonKey } = getSupabaseCredentials();
   
-  // 判断是否使用 Supabase Cloud
-  if (isSupabaseCloud(url)) {
-    // 使用 Supabase Cloud
+  // 判断是否使用 Supabase REST API
+  if (shouldUseSupabaseRestApi(url)) {
+    // 使用 Supabase Cloud REST API
     if (!_supabaseClient) {
       _supabaseClient = createClient(url, anonKey, {
         db: {
@@ -137,7 +148,7 @@ function getSupabaseClient(token?: string): any {
     return _supabaseClient;
   }
   
-  // 使用纯 PostgreSQL
+  // 使用纯 PostgreSQL 连接
   return getPostgresClient();
 }
 

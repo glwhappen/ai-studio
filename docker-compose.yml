@@ -14,7 +14,9 @@ services:
       - "3000:3000"
     environment:
       # 数据库配置（连接 PostgreSQL）
-      COZE_SUPABASE_URL: http://postgres:5432/postgres
+      # 使用 postgresql:// 协议，会自动使用 PostgreSQL 直连模式
+      COZE_SUPABASE_URL: postgresql://postgres:postgres123@postgres:5432/ai_studio
+      # Anon Key 可以是任意值（PostgreSQL 直连模式不使用）
       COZE_SUPABASE_ANON_KEY: ${COZE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDc2NjY0MDAsImV4cCI6MTk2MzI0MjQwMH0.local-anon-key-placeholder}
       # 对象存储配置（连接 MinIO）
       COZE_BUCKET_ENDPOINT_URL: http://minio:9000

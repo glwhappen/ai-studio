@@ -80,19 +80,48 @@ pnpm dev
 
 创建 `.env` 文件，配置以下变量：
 
-### 必需配置
+### 数据库配置
+
+支持两种连接方式：
+
+**方式一：Supabase Cloud REST API（推荐）**
 
 ```bash
-# Supabase 数据库（自建 PostgreSQL 或 Supabase Cloud）
+# 从 Supabase 项目设置 -> API 获取
 COZE_SUPABASE_URL=https://your-project.supabase.co
 COZE_SUPABASE_ANON_KEY=your-anon-key
+```
 
-# 对象存储（MinIO 或其他 S3 兼容服务）
+**方式二：PostgreSQL 直连**
+
+```bash
+# 适用于自建 PostgreSQL 或火山引擎等托管服务
+# 格式：postgresql://用户名:密码@主机:端口/数据库名
+COZE_SUPABASE_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
+COZE_SUPABASE_ANON_KEY=any-value  # PostgreSQL 直连模式下可以是任意值
+```
+
+**火山引擎托管 Supabase 示例：**
+
+```bash
+# 从火山引擎控制台获取数据库连接信息
+COZE_SUPABASE_URL=postgresql://postgres:your-password@br-xxx.supabase2.aidap-global.cn-beijing.volces.com:5432/postgres
+COZE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+### 对象存储配置
+
+```bash
+# MinIO（Docker Compose 默认）
 COZE_BUCKET_ENDPOINT_URL=http://minio:9000
 COZE_BUCKET_NAME=ai-images
 COZE_BUCKET_ACCESS_KEY=minioadmin
 COZE_BUCKET_SECRET_KEY=minioadmin123
-COZE_BUCKET_REGION=us-east-1
+
+# AWS S3
+# COZE_BUCKET_ENDPOINT_URL=https://s3.amazonaws.com
+# COZE_BUCKET_ACCESS_KEY=your-access-key
+# COZE_BUCKET_SECRET_KEY=your-secret-key
 ```
 
 ### AI 模型配置
