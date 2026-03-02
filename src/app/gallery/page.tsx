@@ -98,14 +98,19 @@ function GalleryContent() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
   
-  // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
-  const isClosingRef = useRef(false);
+  // 使用时间戳追踪关闭状态，防止 useEffect 重复触发
+  const closeTimestampRef = useRef<number>(0);
   // 底部观察器 ref
   const loadMoreRef = useRef<HTMLDivElement>(null);
   // 已加载的图片ID（用于随机排序时避免重复）
   const loadedIdsRef = useRef<Set<string>>(new Set());
   // 需要自动打开的图片ID（用于 URL 参数 id）
   const pendingOpenImageIdRef = useRef<string | null>(null);
+  
+  // 判断是否刚关闭预览（500ms 内）
+  const isJustClosed = useCallback(() => {
+    return Date.now() - closeTimestampRef.current < 500;
+  }, []);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -211,9 +216,8 @@ function GalleryContent() {
   useEffect(() => {
     if (!isInitialized) return;
     
-    // 如果是关闭预览导致的 URL 变化，跳过重新加载
-    if (isClosingRef.current) {
-      isClosingRef.current = false;
+    // 如果是刚关闭预览导致的 URL 变化，跳过重新加载
+    if (isJustClosed()) {
       return;
     }
     
@@ -356,8 +360,8 @@ function GalleryContent() {
   useEffect(() => {
     if (!isInitialized || images.length === 0) return;
     
-    // 如果正在关闭，跳过
-    if (isClosingRef.current) {
+    // 如果刚关闭预览，跳过
+    if (isJustClosed()) {
       return;
     }
     
@@ -565,7 +569,7 @@ function GalleryContent() {
   
   // 打开图片预览
   const handleOpenPreview = (image: PublicImage) => {
-    isClosingRef.current = false; // 重置关闭状态
+    closeTimestampRef.current = 0; // 重置关闭时间戳
     setSelectedImage(image);
     setIsPreviewOpen(true);
     // 更新 URL
@@ -576,7 +580,7 @@ function GalleryContent() {
   
   // 关闭图片预览
   const handleClosePreview = () => {
-    isClosingRef.current = true; // 标记正在关闭
+    closeTimestampRef.current = Date.now(); // 记录关闭时间
     setIsPreviewOpen(false);
     // 清除 URL 中的图片 ID
     updateUrl(null);
