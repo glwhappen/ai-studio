@@ -9,8 +9,8 @@ interface ImageViewerProps {
   alt: string;
   isOpen: boolean;
   onClose: () => void;
-  onImageClick?: () => void; // 点击图片回调
-  thumbnailSrc?: string; // 缩略图 URL（先显示缩略图，原图加载后替换）
+  onImageClick?: () => void;
+  thumbnailSrc?: string;
 }
 
 export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnailSrc }: ImageViewerProps) {
@@ -19,77 +19,32 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
   const [isDragging, setIsDragging] = useState(false);
   const [isPinching, setIsPinching] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, scale: 1 });
-  const containerRef = useRef<HTMLDivElement>(null);
   const [lastPinchDist, setLastPinchDist] = useState(0);
   const [pinchStartScale, setPinchStartScale] = useState(1);
   
-  // 缩略图和原图加载状态
-  const [isOriginalLoaded, setIsOriginalLoaded] = useState(false);
+  // 图片加载状态
+  const [showOriginal, setShowOriginal] = useState(false);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  
+  // 使用 ref 防止重复加载
+  const loadingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 重置状态
   const resetState = useCallback(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+    setShowOriginal(false);
+    setImageSize(null);
+    loadingRef.current = false;
   }, []);
 
   // 关闭时重置
   useEffect(() => {
     if (!isOpen) {
       resetState();
-      setIsOriginalLoaded(false);
-      setImageSize(null);
     }
   }, [isOpen, resetState]);
-
-  // 加载原图（预加载，获取尺寸）
-  useEffect(() => {
-    if (!isOpen || !src) return;
-    
-    // 如果没有缩略图，直接加载原图
-    if (!thumbnailSrc) {
-      const img = new Image();
-      img.onload = () => {
-        setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-        setIsOriginalLoaded(true);
-      };
-      img.src = src;
-      return;
-    }
-    
-    // 有缩略图：先显示缩略图，后台预加载原图
-    const img = new Image();
-    img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-      setIsOriginalLoaded(true);
-    };
-    img.onerror = () => {
-      console.error('Failed to load original image:', src);
-      // 即使加载失败，如果没有尺寸，也设置一个默认尺寸
-      if (!imageSize) {
-        setImageSize({ width: 800, height: 600 });
-      }
-    };
-    img.src = src;
-    
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [isOpen, src, thumbnailSrc, imageSize]);
-
-  // 计算图片显示尺寸（基于视口）
-  const displaySize = imageSize ? (() => {
-    const maxWidth = typeof window !== 'undefined' ? window.innerWidth * 0.9 : 800;
-    const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.85 : 600;
-    
-    const ratio = Math.min(maxWidth / imageSize.width, maxHeight / imageSize.height, 1);
-    
-    return {
-      width: Math.round(imageSize.width * ratio),
-      height: Math.round(imageSize.height * ratio),
-    };
-  })() : null;
 
   // 打开时禁用 body 滚动
   useEffect(() => {
@@ -228,16 +183,36 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
     }
   }, [scale, onImageClick]);
 
+  // 原图加载完成
+  const handleOriginalLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (!loadingRef.current) {
+      loadingRef.current = true;
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+      setShowOriginal(true);
+    }
+  }, []);
+
+  // 缩略图加载完成（如果没有原图，用缩略图尺寸）
+  const handleThumbnailLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (!imageSize && !thumbnailSrc) {
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+    }
+  }, [imageSize, thumbnailSrc]);
+
   if (!isOpen) return null;
 
-  // 图片容器样式 - 使用计算出的尺寸或默认尺寸
-  const containerStyle = displaySize ? {
-    width: `${displaySize.width}px`,
-    height: `${displaySize.height}px`,
-  } : {
-    maxWidth: '90vw',
-    maxHeight: '85vh',
-  };
+  // 计算显示尺寸
+  const displaySize = imageSize ? (() => {
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.85;
+    const ratio = Math.min(maxWidth / imageSize.width, maxHeight / imageSize.height, 1);
+    return {
+      width: Math.round(imageSize.width * ratio),
+      height: Math.round(imageSize.height * ratio),
+    };
+  })() : null;
 
   return (
     <div
@@ -300,11 +275,12 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
         onTouchEnd={handleTouchEnd}
         onDoubleClick={handleDoubleClick}
       >
-        {/* 图片包装器 - 共享 transform */}
+        {/* 图片包装器 */}
         <div
           className="relative flex items-center justify-center"
           style={{
-            ...containerStyle,
+            width: displaySize ? `${displaySize.width}px` : '90vw',
+            height: displaySize ? `${displaySize.height}px` : '85vh',
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
             transition: (isDragging || isPinching) ? 'none' : 'transform 0.15s ease-out',
             cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
@@ -316,45 +292,38 @@ export function ImageViewer({ src, alt, isOpen, onClose, onImageClick, thumbnail
             }
           }}
         >
-          {/* 缩略图（底层）- 如果有尺寸，使用固定尺寸 */}
-          {thumbnailSrc && displaySize && (
+          {/* 缩略图（底层）- 有缩略图时显示 */}
+          {thumbnailSrc && (
             <img
               src={thumbnailSrc}
               alt={alt}
-              className="absolute inset-0 select-none"
+              className="absolute inset-0 w-full h-full object-contain select-none"
               style={{
-                width: displaySize.width,
-                height: displaySize.height,
-                objectFit: 'contain',
-                opacity: isOriginalLoaded ? 0 : 1,
+                opacity: showOriginal ? 0 : 1,
                 transition: 'opacity 0.3s ease-out',
               }}
               draggable={false}
+              onLoad={handleThumbnailLoad}
             />
           )}
           
-          {/* 原图（顶层）- 加载完成后淡入覆盖 */}
+          {/* 原图（顶层）- 始终加载，加载完成后淡入 */}
           <img
             src={src}
             alt={alt}
-            className="select-none"
+            className="w-full h-full object-contain select-none relative"
             style={{
-              width: displaySize?.width || 'auto',
-              height: displaySize?.height || 'auto',
-              maxWidth: displaySize ? 'none' : '90vw',
-              maxHeight: displaySize ? 'none' : '85vh',
-              objectFit: 'contain',
-              opacity: isOriginalLoaded ? 1 : (thumbnailSrc ? 0 : 1),
+              opacity: showOriginal ? 1 : 0,
               transition: 'opacity 0.3s ease-out',
-              position: 'relative',
             }}
             draggable={false}
+            onLoad={handleOriginalLoad}
           />
         </div>
       </div>
 
       {/* 加载提示 */}
-      {!isOriginalLoaded && thumbnailSrc && (
+      {thumbnailSrc && !showOriginal && (
         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 text-white/60 text-sm bg-black/50 px-3 py-1.5 rounded-full">
           正在加载高清图片...
         </div>
