@@ -98,19 +98,14 @@ function GalleryContent() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
   
-  // 使用时间戳追踪关闭状态，防止 useEffect 重复触发
-  const closeTimestampRef = useRef<number>(0);
+  // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
+  const isClosingRef = useRef(false);
   // 底部观察器 ref
   const loadMoreRef = useRef<HTMLDivElement>(null);
   // 已加载的图片ID（用于随机排序时避免重复）
   const loadedIdsRef = useRef<Set<string>>(new Set());
   // 需要自动打开的图片ID（用于 URL 参数 id）
   const pendingOpenImageIdRef = useRef<string | null>(null);
-  
-  // 判断是否刚关闭预览（500ms 内）
-  const isJustClosed = useCallback(() => {
-    return Date.now() - closeTimestampRef.current < 500;
-  }, []);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -215,11 +210,6 @@ function GalleryContent() {
   // 初始加载（支持 URL 参数 id）
   useEffect(() => {
     if (!isInitialized) return;
-    
-    // 如果是刚关闭预览导致的 URL 变化，跳过重新加载
-    if (isJustClosed()) {
-      return;
-    }
     
     const imageIdFromUrl = searchParams.get('id');
     
@@ -339,29 +329,31 @@ function GalleryContent() {
     }
   }, [isLoadingMore, isLoading]);
   
-  // 更新 URL（打开/关闭图片时）
+  // 更新 URL（打开图片时使用 router.replace，关闭时使用 history.replaceState 避免触发路由变化）
   const updateUrl = useCallback((imageId: string | null) => {
-    // 直接使用 window.location 获取当前 URL，避免闭包问题
     const currentUrl = new URL(window.location.href);
     
     if (imageId) {
       currentUrl.searchParams.set('id', imageId);
+      // 打开图片时使用 router.replace，确保可以分享链接
+      const newUrl = `${currentUrl.pathname}?${currentUrl.searchParams.toString()}`;
+      router.replace(newUrl, { scroll: false });
     } else {
+      // 关闭时直接使用 history.replaceState，不触发 Next.js 路由变化
       currentUrl.searchParams.delete('id');
+      const newUrl = currentUrl.searchParams.toString() 
+        ? `${currentUrl.pathname}?${currentUrl.searchParams.toString()}` 
+        : currentUrl.pathname;
+      window.history.replaceState(null, '', newUrl);
     }
-    
-    const newUrl = currentUrl.searchParams.toString() 
-      ? `${currentUrl.pathname}?${currentUrl.searchParams.toString()}` 
-      : currentUrl.pathname;
-    router.replace(newUrl, { scroll: false });
   }, [router]);
   
   // 根据 URL 参数自动打开图片（包括初始化时设置的待打开图片）
   useEffect(() => {
     if (!isInitialized || images.length === 0) return;
     
-    // 如果刚关闭预览，跳过
-    if (isJustClosed()) {
+    // 如果正在关闭，跳过
+    if (isClosingRef.current) {
       return;
     }
     
@@ -569,7 +561,7 @@ function GalleryContent() {
   
   // 打开图片预览
   const handleOpenPreview = (image: PublicImage) => {
-    closeTimestampRef.current = 0; // 重置关闭时间戳
+    isClosingRef.current = false; // 重置关闭标志
     setSelectedImage(image);
     setIsPreviewOpen(true);
     // 更新 URL
@@ -580,10 +572,15 @@ function GalleryContent() {
   
   // 关闭图片预览
   const handleClosePreview = () => {
-    closeTimestampRef.current = Date.now(); // 记录关闭时间
+    isClosingRef.current = true; // 标记正在关闭
     setIsPreviewOpen(false);
-    // 清除 URL 中的图片 ID
+    // 清除 URL 中的图片 ID（使用 history.replaceState 避免触发路由变化）
     updateUrl(null);
+    
+    // 在下一个事件循环中重置标志，确保所有 useEffect 都执行完毕
+    setTimeout(() => {
+      isClosingRef.current = false;
+    }, 100);
   };
 
   return (
