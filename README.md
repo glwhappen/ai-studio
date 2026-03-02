@@ -25,21 +25,27 @@
 
 #### 方式一：独立部署（推荐）
 
-只部署前端，使用自己的数据库和对象存储。
+只部署前端，连接 Coze 托管的数据库和对象存储。
 
 ```bash
-# 1. 复制环境变量模板
+# 1. 在 Coze 环境中获取环境变量
+# 访问 http://localhost:5000/api/env?full=1
+# 复制输出的所有环境变量
+
+# 2. 创建本地 .env 文件
 cp .env.standalone.example .env
 
-# 2. 编辑 .env，配置以下必需项：
-#    - 数据库：COZE_SUPABASE_URL, COZE_SUPABASE_ANON_KEY
-#    - 对象存储：S3_ENDPOINT_URL, S3_BUCKET_NAME, S3_ACCESS_KEY, S3_SECRET_KEY
+# 3. 将复制的环境变量粘贴到 .env 中
+# ⚠️ 必须包含 COZE_WORKLOAD_IDENTITY_API_KEY，否则图片无法加载
 
-# 3. 启动服务
-docker-compose -f docker-compose.standalone.yml up -d
+# 4. 启动服务
+docker-compose -f docker-compose.standalone.yml up -d --build
 ```
 
-**注意：独立部署必须配置自己的 S3 兼容存储**（AWS S3、MinIO、阿里云 OSS 等），无法使用 Coze 托管的对象存储。
+**重要提示**：
+- `COZE_WORKLOAD_IDENTITY_API_KEY` 是使用 Coze 托管存储的**必要条件**
+- 此变量只在 Coze 托管环境中存在，必须通过 `/api/env?full=1` 获取
+- 这是敏感密钥，请勿泄露
 
 #### 方式二：完整部署（自建所有服务）
 

@@ -27,18 +27,24 @@ export async function GET(request: NextRequest) {
     COZE_BUCKET_ACCESS_KEY: mask(process.env.COZE_BUCKET_ACCESS_KEY),
     COZE_BUCKET_SECRET_KEY: mask(process.env.COZE_BUCKET_SECRET_KEY),
     COZE_BUCKET_REGION: process.env.COZE_BUCKET_REGION || '(未设置)',
+    
+    // Coze 身份认证（独立部署需要此变量才能使用 Coze 托管存储）
+    COZE_WORKLOAD_IDENTITY_API_KEY: mask(process.env.COZE_WORKLOAD_IDENTITY_API_KEY),
   };
 
   // 如果是完整模式，输出可直接复制的格式
   if (showFull) {
     const envContent = `# 环境变量配置（从 Coze 环境导出）
+# ⚠️ 警告：COZE_WORKLOAD_IDENTITY_API_KEY 是敏感密钥，请妥善保管！
+
 COZE_SUPABASE_URL=${config.COZE_SUPABASE_URL}
 COZE_SUPABASE_ANON_KEY=${config.COZE_SUPABASE_ANON_KEY}
 COZE_BUCKET_ENDPOINT_URL=${config.COZE_BUCKET_ENDPOINT_URL}
 COZE_BUCKET_NAME=${config.COZE_BUCKET_NAME}
 COZE_BUCKET_ACCESS_KEY=${config.COZE_BUCKET_ACCESS_KEY}
 COZE_BUCKET_SECRET_KEY=${config.COZE_BUCKET_SECRET_KEY}
-COZE_BUCKET_REGION=${config.COZE_BUCKET_REGION}`;
+COZE_BUCKET_REGION=${config.COZE_BUCKET_REGION}
+COZE_WORKLOAD_IDENTITY_API_KEY=${config.COZE_WORKLOAD_IDENTITY_API_KEY}`;
     
     return new NextResponse(envContent, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' }
