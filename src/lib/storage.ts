@@ -1,14 +1,53 @@
 import { S3Storage } from "coze-coding-dev-sdk";
 import sharp from "sharp";
 
+// 对象存储配置
+interface StorageConfig {
+  endpointUrl: string;
+  bucketName: string;
+  accessKey?: string;
+  secretKey?: string;
+  region?: string;
+}
+
+// 获取对象存储配置
+function getStorageConfig(): StorageConfig {
+  const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL || process.env.S3_ENDPOINT_URL;
+  const bucketName = process.env.COZE_BUCKET_NAME || process.env.S3_BUCKET_NAME;
+  const accessKey = process.env.COZE_BUCKET_ACCESS_KEY || process.env.S3_ACCESS_KEY || "";
+  const secretKey = process.env.COZE_BUCKET_SECRET_KEY || process.env.S3_SECRET_KEY || "";
+  const region = process.env.COZE_BUCKET_REGION || process.env.S3_REGION || "cn-beijing";
+
+  if (!endpointUrl) {
+    throw new Error("Storage endpoint URL is not set. Please set COZE_BUCKET_ENDPOINT_URL or S3_ENDPOINT_URL in your environment variables.");
+  }
+  if (!bucketName) {
+    throw new Error("Storage bucket name is not set. Please set COZE_BUCKET_NAME or S3_BUCKET_NAME in your environment variables.");
+  }
+
+  return { endpointUrl, bucketName, accessKey, secretKey, region };
+}
+
 // 初始化对象存储客户端
-export const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: "",
-  secretKey: "",
-  bucketName: process.env.COZE_BUCKET_NAME,
-  region: "cn-beijing",
-});
+function createStorageClient(): S3Storage {
+  const config = getStorageConfig();
+  return new S3Storage({
+    endpointUrl: config.endpointUrl,
+    accessKey: config.accessKey || "",
+    secretKey: config.secretKey || "",
+    bucketName: config.bucketName,
+    region: config.region,
+  });
+}
+
+// 懒加载存储客户端
+let _storage: S3Storage | null = null;
+function getStorage(): S3Storage {
+  if (!_storage) {
+    _storage = createStorageClient();
+  }
+  return _storage;
+}
 
 // 缩略图配置
 const THUMBNAIL_MAX_WIDTH = 400;
@@ -46,7 +85,7 @@ export async function uploadBase64Image(
   const buffer = Buffer.from(base64, 'base64');
   
   // 上传到对象存储
-  const key = await storage.uploadFile({
+  const key = await getStorage().uploadFile({
     fileContent: buffer,
     fileName: `ai-images/${fileName}`,
     contentType: mimeType,
@@ -82,7 +121,7 @@ export async function generateAndUploadThumbnail(
     .toBuffer();
   
   // 上传缩略图到对象存储
-  const thumbnailKey = await storage.uploadFile({
+  const thumbnailKey = await getStorage().uploadFile({
     fileContent: thumbnailBuffer,
     fileName: `ai-thumbnails/${fileName}`,
     contentType: 'image/jpeg',
@@ -93,7 +132,7 @@ export async function generateAndUploadThumbnail(
 
 // 获取图片的签名 URL
 export async function getImageUrl(key: string, expireTime = 86400 * 30): Promise<string> {
-  return storage.generatePresignedUrl({
+  return getStorage().generatePresignedUrl({
     key,
     expireTime, // 默认 30 天有效期
   });

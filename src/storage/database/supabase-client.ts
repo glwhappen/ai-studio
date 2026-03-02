@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
 
 let envLoaded = false;
 
@@ -9,21 +8,26 @@ interface SupabaseCredentials {
 }
 
 function loadEnv(): void {
-  if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
+  // 如果环境变量已经设置，直接返回
+  if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
+    envLoaded = true;
     return;
   }
 
+  // 尝试从 dotenv 加载（本地开发或自部署环境）
   try {
-    try {
-      require('dotenv').config();
-      if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
-        envLoaded = true;
-        return;
-      }
-    } catch {
-      // dotenv not available
+    require('dotenv').config();
+    if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
+      envLoaded = true;
+      return;
     }
+  } catch {
+    // dotenv not available
+  }
 
+  // 尝试从 Coze workload identity 获取（Coze 环境下）
+  try {
+    const { execSync } = require('child_process');
     const pythonCode = `
 import os
 import sys
@@ -63,7 +67,7 @@ except Exception as e:
 
     envLoaded = true;
   } catch {
-    // Silently fail
+    // Silently fail - 非 Coze 环境
   }
 }
 
@@ -74,10 +78,10 @@ function getSupabaseCredentials(): SupabaseCredentials {
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error('COZE_SUPABASE_URL is not set');
+    throw new Error('COZE_SUPABASE_URL is not set. Please set it in your environment variables or .env file.');
   }
   if (!anonKey) {
-    throw new Error('COZE_SUPABASE_ANON_KEY is not set');
+    throw new Error('COZE_SUPABASE_ANON_KEY is not set. Please set it in your environment variables or .env file.');
   }
 
   return { url, anonKey };
