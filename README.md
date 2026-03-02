@@ -19,62 +19,60 @@
 
 - Node.js 18+
 - pnpm 8+
-- Docker & Docker Compose（用于一键部署）
+- Docker & Docker Compose（用于部署）
 
-### 方式一：Docker Compose 一键部署（推荐）
+### 部署方式
 
-1. **克隆项目**
+#### 方式一：独立部署（推荐）
+
+只部署前端，使用 Coze 托管的数据库和对象存储。
 
 ```bash
-git clone <your-repo-url>
-cd <project-name>
+# 1. 复制环境变量模板
+cp .env.standalone.example .env
+
+# 2. 编辑 .env，填写 Coze 环境变量
+#    从 Coze 环境获取：
+#    - COZE_SUPABASE_URL
+#    - COZE_SUPABASE_ANON_KEY
+#    - COZE_BUCKET_ENDPOINT_URL
+#    - COZE_BUCKET_NAME
+
+# 3. 启动服务
+docker-compose -f docker-compose.standalone.yml up -d
 ```
 
-2. **配置环境变量**
+#### 方式二：完整部署（自建所有服务）
+
+包含前端、PostgreSQL、MinIO 对象存储，适合完全离线部署。
 
 ```bash
-# 复制环境变量模板
-cp .env.example .env
-
-# 编辑 .env 文件，填写必要的配置
-nano .env
-```
-
-3. **启动所有服务**
-
-```bash
-docker-compose up -d
-```
-
-4. **访问应用**
-
-- 应用地址：http://localhost:3000
-- MinIO 控制台：http://localhost:9001（admin/minioadmin123）
-
-### 方式二：本地开发
-
-1. **安装依赖**
-
-```bash
-pnpm install
-```
-
-2. **配置环境变量**
-
-```bash
+# 1. 配置环境变量
 cp .env.example .env
 # 编辑 .env 文件
+
+# 2. 启动所有服务
+docker-compose up -d
+
+# 3. 访问服务
+# - 应用：http://localhost:3000
+# - MinIO 控制台：http://localhost:9001
 ```
 
-3. **启动开发服务器**
+#### 方式三：本地开发
 
 ```bash
+# 1. 安装依赖
+pnpm install
+
+# 2. 配置环境变量
+cp .env.example .env
+
+# 3. 启动开发服务器
 pnpm dev
+
+# 4. 访问 http://localhost:5000
 ```
-
-4. **访问应用**
-
-打开 http://localhost:5000
 
 ## 环境变量配置
 

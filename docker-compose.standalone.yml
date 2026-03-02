@@ -1,0 +1,38 @@
+# ============================================
+# AI 创作室 - 独立前端部署
+# 只部署前端，使用 Coze 环境的数据库和对象存储
+# ============================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-studio-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # ============================================
+      # 数据库配置（连接 Coze 环境）
+      # ============================================
+      # 从 Coze 环境变量中获取，格式：
+      # https://xxx.supabase2.aidap-global.xxx.volces.com
+      COZE_SUPABASE_URL: ${COZE_SUPABASE_URL}
+      COZE_SUPABASE_ANON_KEY: ${COZE_SUPABASE_ANON_KEY}
+      
+      # ============================================
+      # 对象存储配置（连接 Coze 环境）
+      # ============================================
+      # 从 Coze 环境变量中获取
+      COZE_BUCKET_ENDPOINT_URL: ${COZE_BUCKET_ENDPOINT_URL}
+      COZE_BUCKET_NAME: ${COZE_BUCKET_NAME}
+      
+      # Node 环境
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
