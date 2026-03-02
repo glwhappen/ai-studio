@@ -7,6 +7,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
+# 安装 sharp 所需的依赖
+RUN apk add --no-cache vips-dev
+
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -20,6 +23,9 @@ RUN pnpm install --frozen-lockfile --prod
 # 阶段 2: 构建
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# 安装 bash 和 sharp 依赖（Alpine 默认只有 sh）
+RUN apk add --no-cache bash vips-dev
 
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -44,6 +50,9 @@ RUN pnpm run build
 # 阶段 3: 运行
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# 安装 sharp 所需的运行时依赖
+RUN apk add --no-cache vips
 
 # 设置环境变量
 ENV NODE_ENV=production
