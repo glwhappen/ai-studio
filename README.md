@@ -152,8 +152,8 @@ S3_SECRET_KEY=your-secret-key
 - **模型**：支持的图片生成模型
 
 支持的模型：
-- Gemini：`imagen-3.0-generate-002` 等
-- OpenAI：`gpt-image-1`、`dall-e-3` 等
+- Gemini：`gemini-3.1-flash-image-preview`（默认）、`gemini-2.0-flash-preview-image-generation` 等
+- OpenAI：`gpt-image-1.5`（默认）、`gpt-image-1`、`dall-e-3` 等
 
 ## Docker Compose 配置
 

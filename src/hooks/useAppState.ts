@@ -57,12 +57,12 @@ const DEFAULT_OPENAI_CONFIG: ProviderConfig = {
 };
 
 const defaultApiConfig: ApiConfigState = {
-  currentProvider: 'openai',
+  currentProvider: 'gemini',  // 默认使用 Gemini 供应商
   providers: {
     gemini: DEFAULT_GEMINI_CONFIG,
     openai: DEFAULT_OPENAI_CONFIG,
   },
-  selectedModel: '',
+  selectedModel: '',  // 模型会在用户首次使用时根据供应商自动设置
   aspectRatio: '1:1',
   imageSize: '1K',
   openaiSize: 'auto',
@@ -89,7 +89,7 @@ export function useAppState() {
         const storedProviders = parsed.apiConfig?.providers || {};
         
         setApiConfig({
-          currentProvider: parsed.apiConfig?.currentProvider || 'openai',
+          currentProvider: parsed.apiConfig?.currentProvider || 'gemini',  // 默认 Gemini
           providers: {
             gemini: { ...DEFAULT_GEMINI_CONFIG, ...storedProviders.gemini },
             openai: { ...DEFAULT_OPENAI_CONFIG, ...storedProviders.openai },

@@ -138,6 +138,7 @@ export const KNOWN_MODELS: Record<string, ApiProvider> = {
   // Gemini 系列
   'gemini-2.0-flash-exp-image-generation': 'gemini',
   'gemini-2.0-flash-preview-image-generation': 'gemini',
+  'gemini-3.1-flash-image-preview': 'gemini',  // 新增
   // OpenAI / GPT Image 系列
   'gpt-image-1': 'openai',
   'gpt-image-1.5': 'openai',
@@ -146,6 +147,12 @@ export const KNOWN_MODELS: Record<string, ApiProvider> = {
   'dall-e-3': 'openai',
   'flux-kontext-pro': 'openai',
   'flux-kontext-max': 'openai',
+};
+
+// 默认模型配置（用户首次使用时自动选择）
+export const DEFAULT_MODELS: Record<ApiProvider, string> = {
+  gemini: 'gemini-3.1-flash-image-preview',
+  openai: 'gpt-image-1.5',
 };
 
 // 供应商显示信息

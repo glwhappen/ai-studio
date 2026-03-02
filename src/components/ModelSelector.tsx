@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, AlertCircle, Sparkles, Bot } from 'lucide-react';
 import type { ApiProvider, ProviderConfig } from '@/types';
+import { DEFAULT_MODELS } from '@/types';
 
 // 缓存 key 前缀
 const MODELS_CACHE_PREFIX = 'ai-image-models-cache-';
@@ -105,9 +106,11 @@ export function ModelSelector({
         setModels(cachedModels);
         setHasLoadedFromCache(true);
         
-        // 如果当前没有选择模型，自动选择第一个
+        // 如果当前没有选择模型，自动选择默认模型或第一个
         if (!selectedModel && cachedModels.length > 0) {
-          onModelChange(cachedModels[0].name);
+          const defaultModel = DEFAULT_MODELS[currentProvider];
+          const hasDefaultModel = cachedModels.some(m => m.name === defaultModel || m.name === `models/${defaultModel}`);
+          onModelChange(hasDefaultModel ? defaultModel : cachedModels[0].name);
         }
         return;
       }
@@ -148,13 +151,17 @@ export function ModelSelector({
       // 如果当前选择的模型不在列表中，清空选择
       if (selectedModel && !allModels.find(m => m.name === selectedModel)) {
         if (allModels.length > 0) {
-          onModelChange(allModels[0].name);
+          const defaultModel = DEFAULT_MODELS[currentProvider];
+          const hasDefaultModel = allModels.some(m => m.name === defaultModel || m.name === `models/${defaultModel}`);
+          onModelChange(hasDefaultModel ? defaultModel : allModels[0].name);
         } else {
           onModelChange('');
         }
       } else if (!selectedModel && allModels.length > 0) {
-        // 如果没有选择模型，自动选择第一个
-        onModelChange(allModels[0].name);
+        // 如果没有选择模型，自动选择默认模型或第一个
+        const defaultModel = DEFAULT_MODELS[currentProvider];
+        const hasDefaultModel = allModels.some(m => m.name === defaultModel || m.name === `models/${defaultModel}`);
+        onModelChange(hasDefaultModel ? defaultModel : allModels[0].name);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
