@@ -9,19 +9,30 @@ interface SupabaseCredentials {
 }
 
 // 检测是否应该使用 Supabase REST API（而不是 PostgreSQL 直连）
-// Supabase REST API 地址格式：https://xxx.supabase.co 或 https://xxx.supabase.in
-// PostgreSQL 直连地址：任何其他格式（包括端口 5432 或非 HTTPS）
+// Supabase REST API 地址格式：
+// - https://xxx.supabase.co (官方 Supabase Cloud)
+// - https://xxx.supabase.in (官方 Supabase Cloud 备用域名)
+// - https://xxx.supabase2.aidap-global.xxx.volces.com (火山引擎托管)
+// - 其他 https:// 开头的 Supabase 兼容地址
 function shouldUseSupabaseRestApi(url: string): boolean {
-  // 只有当 URL 是 HTTPS 且包含典型的 Supabase Cloud 域名时才使用 REST API
-  const isHttps = url.startsWith('https://');
-  const isSupabaseCloud = url.includes('.supabase.co') || url.includes('.supabase.in');
-  
-  // 如果是 PostgreSQL 连接字符串（postgresql://）或包含端口 5432，使用 PostgreSQL 客户端
-  if (url.startsWith('postgresql://') || url.includes(':5432')) {
+  // 如果是 PostgreSQL 连接字符串，使用 PostgreSQL 客户端
+  if (url.startsWith('postgresql://') || url.startsWith('postgres://')) {
     return false;
   }
   
-  return isHttps && isSupabaseCloud;
+  // 如果是 http:// 且包含端口 5432，使用 PostgreSQL 客户端
+  if (url.startsWith('http://') && url.includes(':5432')) {
+    return false;
+  }
+  
+  // 如果是 https:// 开头，使用 Supabase REST API
+  // 包括：supabase.co, supabase.in, supabase2.aidap-global.volces.com 等
+  if (url.startsWith('https://')) {
+    return true;
+  }
+  
+  // 其他情况（如 http://postgres:5432/db），使用 PostgreSQL 客户端
+  return false;
 }
 
 function loadEnv(): void {
