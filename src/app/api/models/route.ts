@@ -52,3 +52,39 @@ export async function GET(request: NextRequest) {
   
   return NextResponse.json({ models, cached: false });
 }
+
+// POST 方法支持（用于传递敏感参数如 apiKey）
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { baseUrl, apiKey, provider } = body;
+    
+    if (!baseUrl || !apiKey) {
+      return NextResponse.json(
+        { success: false, error: '缺少必要参数' },
+        { status: 400 }
+      );
+    }
+    
+    // 获取模型列表
+    const modelIds = await fetchModels(baseUrl, apiKey);
+    
+    // 转换为前端需要的格式
+    const models = modelIds.map(m => ({
+      name: m.id,
+      displayName: m.id.split('/').pop() || m.id,
+      provider: provider || 'openai',
+    }));
+    
+    return NextResponse.json({ 
+      success: true, 
+      models,
+    });
+  } catch (error) {
+    console.error('Failed to fetch models:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '获取模型列表失败' },
+      { status: 500 }
+    );
+  }
+}
