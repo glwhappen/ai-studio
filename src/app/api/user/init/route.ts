@@ -13,29 +13,44 @@ export async function POST(request: NextRequest) {
     
     const client = getSupabaseClient();
     
-    // 先查询是否存在
+    // token 就是用户 ID，直接查询是否存在
     const { data: existingUser, error: queryError } = await client
       .from('users')
       .select('id')
-      .eq('token', token)
-      .single();
+      .eq('id', token)
+      .maybeSingle();
     
-    if (existingUser) {
-      return NextResponse.json({ success: true, userId: existingUser.id });
+    if (queryError) {
+      console.error('Query user error:', queryError);
     }
     
-    // 不存在则创建
+    if (existingUser) {
+      return NextResponse.json({ success: true, userId: existingUser.id, isNew: false });
+    }
+    
+    // 不存在则创建（id 就是 token）
     const { data: newUser, error: insertError } = await client
       .from('users')
-      .insert({ token })
+      .insert({ id: token })
       .select('id')
       .single();
     
     if (insertError) {
+      // 可能是并发插入导致的唯一键冲突，再次查询
+      const { data: retryUser } = await client
+        .from('users')
+        .select('id')
+        .eq('id', token)
+        .maybeSingle();
+      
+      if (retryUser) {
+        return NextResponse.json({ success: true, userId: retryUser.id, isNew: false });
+      }
+      
       throw insertError;
     }
     
-    return NextResponse.json({ success: true, userId: newUser?.id });
+    return NextResponse.json({ success: true, userId: newUser?.id, isNew: true });
   } catch (error) {
     console.error('Init user error:', error);
     return NextResponse.json(

@@ -57,8 +57,6 @@ function getPostgresConfig(): PostgresConfig {
   }
   
   // 解析 PostgreSQL 连接 URL
-  // 格式: postgresql://user:password@host:port/database
-  // 或: http://host:port/database (Docker Compose 格式)
   try {
     const parsed = new URL(url);
     
@@ -104,8 +102,7 @@ function getSqlConnection(): postgres.Sql {
       ssl: config.ssl ? 'prefer' : false,
       max: 10,
       idle_timeout: 20,
-      connect_timeout: 30, // 增加连接超时时间
-      // 连接错误处理
+      connect_timeout: 30,
       onnotice: (notice) => {
         console.log('[DB] Notice:', notice.message);
       },
@@ -141,35 +138,45 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
     needCount: false,
   };
   
-  const buildWhereClause = (): { sql: string; params: unknown[] } => {
+  // 构建 WHERE 子句，返回 SQL 和参数
+  // paramIndex 是当前参数的起始索引（用于 UPDATE 等有前置参数的情况）
+  const buildWhereClause = (paramStartIndex: number = 1): { sql: string; params: unknown[] } => {
     if (state.wheres.length === 0) {
       return { sql: '', params: [] };
     }
     
+    const params: unknown[] = [];
+    let paramIndex = paramStartIndex;
+    
     const conditions = state.wheres.map(w => {
       const notPrefix = w.isNot ? 'NOT ' : '';
       
-      if (w.operator === 'IN') {
-        return `${notPrefix}${w.column} IN (${(w.value as unknown[]).map(() => '?').join(', ')})`;
-      }
-      if (w.operator === 'IS') {
-        return `${w.column} IS ${w.value}`;
-      }
-      if (w.operator === 'is') {
-        return `${w.column} IS ${w.value}`;
+      // 处理 IS 操作符（用于 null 检查）
+      if (w.operator === 'IS' || w.operator === 'is') {
+        const sqlValue = w.value === null ? 'NULL' : String(w.value);
+        if (w.isNot) {
+          return `${w.column} IS NOT ${sqlValue}`;
+        }
+        return `${w.column} IS ${sqlValue}`;
       }
       
-      return `${notPrefix}${w.column} ${w.operator} ?`;
-    });
-    
-    const params = state.wheres.flatMap(w => {
-      if (w.operator === 'IN' || w.operator === 'in') {
-        return w.value as unknown[];
+      // 处理 IN 操作符
+      if (w.operator === 'IN') {
+        const values = w.value as unknown[];
+        const placeholders = values.map(() => {
+          params.push(null); // 占位，下面会重新填充
+          return `$${paramIndex++}`;
+        });
+        // 清空并重新填充 params
+        const startIndex = params.length - values.length;
+        params.splice(startIndex, values.length, ...values);
+        
+        return `${notPrefix}${w.column} IN (${placeholders.join(', ')})`;
       }
-      if (w.operator === 'IS' || w.operator === 'is') {
-        return []; // IS 不需要参数
-      }
-      return [w.value];
+      
+      // 处理普通比较操作符
+      params.push(w.value);
+      return `${notPrefix}${w.column} ${w.operator} $${paramIndex++}`;
     });
     
     return {
@@ -194,10 +201,9 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
         
         query = `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${values} RETURNING *`;
       } else if (state.updateData) {
-        const { sql: whereSql, params: whereParams } = buildWhereClause();
-        
         const setClauses = Object.keys(state.updateData).map((k, i) => `${k} = $${i + 1}`);
         const setValues = Object.values(state.updateData);
+        const { sql: whereSql, params: whereParams } = buildWhereClause(setValues.length + 1);
         
         query = `UPDATE ${table} SET ${setClauses.join(', ')}${whereSql} RETURNING *`;
         params.push(...setValues, ...whereParams);
@@ -235,10 +241,10 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
         params.push(...whereParams);
       }
       
-      // 使用类型断言来处理参数
       const result = await sql.unsafe(query, params as postgres.ParameterOrJSON<never>[]);
       return { data: result as unknown[], error: null, count: countResult };
     } catch (error) {
+      console.error('[DB] Query error:', error);
       return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
@@ -280,7 +286,6 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
     },
     
     not: (column: string, operator: string, value: unknown) => {
-      // 将 not 操作符转换为对应的否定操作符
       const opMap: Record<string, string> = {
         'eq': '!=',
         'neq': '=',
@@ -354,7 +359,7 @@ function createQueryBuilder(sql: postgres.Sql, table: string): QueryBuilder {
   return builder;
 }
 
-// 数据库客户端接口（模拟 SupabaseClient）
+// 数据库客户端接口
 interface DatabaseClient {
   from: (table: string) => QueryBuilder;
   rpc: (fn: string, params?: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
@@ -371,7 +376,6 @@ function getPostgresClient(): DatabaseClient {
       try {
         const sql = getSqlConnection();
         
-        // 构建 RPC 调用
         const paramNames = params ? Object.keys(params) : [];
         const paramValues = params ? Object.values(params) : [];
         
