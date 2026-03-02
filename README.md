@@ -23,7 +23,33 @@
 
 ### 部署方式
 
-#### 方式一：独立部署（推荐）
+#### 方式一：使用预构建镜像（最简单，推荐）
+
+无需本地构建，直接拉取 GitHub Container Registry 的预构建镜像。
+
+```bash
+# 1. 克隆仓库（只需要配置文件）
+git clone https://github.com/your-username/ai-studio.git
+cd ai-studio
+
+# 2. 使用预构建镜像启动
+# 将 your-username 替换为你的 GitHub 用户名
+export GITHUB_USER=your-username
+docker-compose -f docker-compose.ghcr.yml up -d
+
+# 3. 访问应用
+# http://localhost:3000
+```
+
+**前提条件**：
+- 镜像需要先推送到 GitHub Container Registry
+- 推送代码到 GitHub 后，Actions 会自动构建镜像
+- 公开仓库的镜像可以直接拉取，私有仓库需要先登录：
+  ```bash
+  echo $GITHUB_TOKEN | docker login ghcr.io -u your-username --password-stdin
+  ```
+
+#### 方式二：独立部署（连接托管服务）
 
 只部署前端，连接 Coze 托管的数据库和对象存储。
 
@@ -47,7 +73,7 @@ docker-compose -f docker-compose.standalone.yml up -d --build
 - 此变量只在 Coze 托管环境中存在，必须通过 `/api/env?full=1` 获取
 - 这是敏感密钥，请勿泄露
 
-#### 方式二：完整部署（自建所有服务）
+#### 方式三：完整部署（自建所有服务）
 
 包含前端、PostgreSQL、MinIO 对象存储，适合完全离线部署。
 
@@ -92,7 +118,7 @@ Dockerfile 已针对低配服务器优化：
 - 限制 Node.js 内存（`--max-old-space-size=1024`）
 - 限制 pnpm 网络并发（`--network-concurrency=1`）
 
-#### 方式三：本地开发
+#### 方式四：本地开发
 
 ```bash
 # 1. 安装依赖

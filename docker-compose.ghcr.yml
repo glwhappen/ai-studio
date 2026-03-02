@@ -1,0 +1,119 @@
+# ============================================
+# AI 创作室 - 使用预构建镜像部署
+# 无需本地构建，直接拉取使用
+# ============================================
+
+services:
+  # ============================================
+  # Next.js 应用（预构建镜像）
+  # ============================================
+  app:
+    image: ghcr.io/${GITHUB_USER:-your-username}/ai-studio:latest
+    container_name: ai-studio-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 数据库配置（连接 PostgreSQL）
+      COZE_SUPABASE_URL: postgresql://postgres:postgres123@postgres:5432/ai_studio
+      COZE_SUPABASE_ANON_KEY: ${COZE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDc2NjY0MDAsImV4cCI6MTk2MzI0MjQwMH0.local-anon-key-placeholder}
+      # 对象存储配置（连接 MinIO）
+      COZE_BUCKET_ENDPOINT_URL: http://minio:9000
+      COZE_BUCKET_NAME: ai-images
+      COZE_BUCKET_ACCESS_KEY: minioadmin
+      COZE_BUCKET_SECRET_KEY: minioadmin123
+      COZE_BUCKET_REGION: us-east-1
+      # Node 环境
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - ai-studio-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # PostgreSQL 数据库
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-studio-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: ai_studio
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - ai-studio-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_studio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MinIO 对象存储
+  # ============================================
+  minio:
+    image: minio/minio:latest
+    container_name: ai-studio-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_CONSOLE_ADDRESS: ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - ai-studio-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================
+  # MinIO 初始化
+  # ============================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: ai-studio-minio-init
+    depends_on:
+      - minio
+    networks:
+      - ai-studio-network
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5;
+        mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+        mc mb myminio/ai-images --ignore-existing;
+        mc anonymous set download myminio/ai-images/public;
+        echo 'Bucket ai-images created successfully';
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  ai-studio-network:
+    driver: bridge
