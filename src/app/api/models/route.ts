@@ -9,8 +9,12 @@ function isImageModel(modelId: string, provider?: string): boolean {
   const lowerId = modelId.toLowerCase();
   
   if (provider === 'gemini') {
-    // Gemini: 包含 imagen 或 gemini-2.0/2.5-flash/pro 的模型支持图片生成
-    return GEMINI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+    // Gemini: 必须同时满足：
+    // 1. 包含 imagen 或 gemini-2.0/2.5-flash/pro
+    // 2. 包含 image（如 imagen 自动满足，gemini 需要带 image 后缀）
+    const hasKeyword = GEMINI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+    const hasImage = lowerId.includes('image');
+    return hasKeyword && hasImage;
   } else {
     // OpenAI: 只显示 gpt-image 和 dall-e 模型
     return OPENAI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
