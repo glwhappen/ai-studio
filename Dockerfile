@@ -13,8 +13,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # 复制依赖配置文件
 COPY package.json pnpm-lock.yaml ./
 
-# 安装生产依赖
-RUN pnpm install --frozen-lockfile --prod
+# 安装所有依赖（包括 devDependencies，构建需要）
+RUN pnpm install --frozen-lockfile
 
 # ============================================
 # 阶段 2: 构建
@@ -38,7 +38,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # 构建应用
-RUN pnpm run build
+RUN npx next build
 
 # ============================================
 # 阶段 3: 运行
