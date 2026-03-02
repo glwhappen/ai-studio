@@ -27,7 +27,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Sparkles, Image as ImageIcon, Loader2, ExternalLink, Clock, HelpCircle, Wand2, Pencil, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -63,8 +62,7 @@ function HomeContent() {
   const [isRewriteDialogOpen, setIsRewriteDialogOpen] = useState(false);
   const [rewriteInstruction, setRewriteInstruction] = useState('');
   const [isRewriting, setIsRewriting] = useState(false);
-  // 直接生成相关状态
-  const [isDirectGenerating, setIsDirectGenerating] = useState(false);
+  // 直接生成相关状态（每个任务独立执行，不阻塞）
   const [directGenerateResults, setDirectGenerateResults] = useState<Array<{ status: 'pending' | 'generating' | 'success' | 'error'; instruction: string; error?: string }>>([]);
 
   // 提示词历史记录（用于撤销/重做）
@@ -308,9 +306,9 @@ function HomeContent() {
     }
   };
 
-  // 直接生成（后台改写并绘图，立即返回，不阻塞用户操作）
+  // 直接生成（后台改写并绘图，立即返回，可连续提交多个任务）
   const handleDirectGenerate = () => {
-    if (!prompt.trim() || !rewriteInstruction.trim() || isDirectGenerating) return;
+    if (!prompt.trim() || !rewriteInstruction.trim()) return;
     
     const currentInstruction = rewriteInstruction;
     
@@ -320,17 +318,11 @@ function HomeContent() {
       status: 'generating', 
       instruction: currentInstruction 
     }]);
-    setIsDirectGenerating(true);
     
-    // 立即关闭对话框，让用户可以继续操作
-    setIsRewriteDialogOpen(false);
+    // 清空输入框，让用户可以继续输入新的指令
+    setRewriteInstruction('');
     
-    // 通知用户任务已提交
-    toast.success('任务已提交', {
-      description: '正在后台改写并生成图片，完成后会自动显示在"我的作品"中',
-    });
-    
-    // 后台执行改写和生成
+    // 后台执行改写和生成（不阻塞用户操作）
     (async () => {
       try {
         // 1. 先改写提示词
@@ -355,7 +347,6 @@ function HomeContent() {
           setDirectGenerateResults(prev => prev.map((r, i) => 
             i === resultIndex ? { ...r, status: 'error', error: rewriteData.error || '改写失败' } : r
           ));
-          toast.error('改写失败', { description: rewriteData.error || '请稍后重试' });
           return;
         }
         
@@ -390,22 +381,15 @@ function HomeContent() {
           ));
           // 刷新图片列表
           fetchImages();
-          toast.success('图片生成任务已提交', {
-            description: '正在后台生成中，完成后会显示在"我的作品"列表',
-          });
         } else {
           setDirectGenerateResults(prev => prev.map((r, i) => 
             i === resultIndex ? { ...r, status: 'error', error: submitData.error || '生成失败' } : r
           ));
-          toast.error('生成失败', { description: submitData.error || '请稍后重试' });
         }
       } catch (err) {
         setDirectGenerateResults(prev => prev.map((r, i) => 
           i === resultIndex ? { ...r, status: 'error', error: '请求失败' } : r
         ));
-        toast.error('请求失败', { description: '网络错误，请稍后重试' });
-      } finally {
-        setIsDirectGenerating(false);
       }
     })();
   };
@@ -876,7 +860,7 @@ function HomeContent() {
                 value={rewriteInstruction}
                 onChange={(e) => setRewriteInstruction(e.target.value)}
                 className="min-h-[100px] resize-none"
-                disabled={isRewriting || isDirectGenerating}
+                disabled={isRewriting}
               />
             </div>
             
@@ -924,7 +908,7 @@ function HomeContent() {
               <Button 
                 variant="secondary"
                 onClick={handleRewritePrompt}
-                disabled={!rewriteInstruction.trim() || isRewriting || isDirectGenerating}
+                disabled={!rewriteInstruction.trim() || isRewriting}
                 className="flex-1 sm:flex-none"
               >
                 {isRewriting ? (
@@ -941,20 +925,11 @@ function HomeContent() {
               </Button>
               <Button 
                 onClick={handleDirectGenerate}
-                disabled={!rewriteInstruction.trim() || isRewriting || isDirectGenerating || !userId}
+                disabled={!rewriteInstruction.trim() || !userId}
                 className="flex-1 sm:flex-none"
               >
-                {isDirectGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    生成中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    直接生成
-                  </>
-                )}
+                <Sparkles className="h-4 w-4 mr-2" />
+                直接生成
               </Button>
             </div>
           </DialogFooter>
