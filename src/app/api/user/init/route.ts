@@ -11,6 +11,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少用户 ID' }, { status: 400 });
     }
     
+    // 检查 token 长度
+    if (token.length > 128) {
+      return NextResponse.json({ 
+        error: '用户 ID 过长，请清除浏览器缓存后重试' 
+      }, { status: 400 });
+    }
+    
     const client = getSupabaseClient();
     
     // token 就是用户 ID，直接查询是否存在
@@ -36,6 +43,15 @@ export async function POST(request: NextRequest) {
       .single();
     
     if (insertError) {
+      // 检查是否是字段长度错误
+      if (insertError.code === '22001') {
+        console.error('User ID too long for database field. Please run migration: supabase/migrations/fix_user_id_length.sql');
+        return NextResponse.json({ 
+          error: '数据库字段长度不足，请联系管理员执行迁移脚本',
+          details: 'Please run: supabase/migrations/fix_user_id_length.sql'
+        }, { status: 500 });
+      }
+      
       // 可能是并发插入导致的唯一键冲突，再次查询
       const { data: retryUser } = await client
         .from('users')

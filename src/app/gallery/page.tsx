@@ -98,14 +98,12 @@ function GalleryContent() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false); // 是否已初始化
   
-  // 使用 ref 追踪关闭状态，防止 useEffect 重复触发
-  const isClosingRef = useRef(false);
+  // 使用 ref 追踪当前应该预览的图片 ID（替代依赖 searchParams）
+  const currentPreviewIdRef = useRef<string | null>(null);
   // 底部观察器 ref
   const loadMoreRef = useRef<HTMLDivElement>(null);
   // 已加载的图片ID（用于随机排序时避免重复）
   const loadedIdsRef = useRef<Set<string>>(new Set());
-  // 需要自动打开的图片ID（用于 URL 参数 id）
-  const pendingOpenImageIdRef = useRef<string | null>(null);
   
   // 获取 userToken（与首页使用相同的 key）
   useEffect(() => {
@@ -246,8 +244,12 @@ function GalleryContent() {
               
               setImages(allImages);
               
-              // 标记需要自动打开（在另一个 useEffect 中处理）
-              pendingOpenImageIdRef.current = targetImage.id;
+              // 设置当前预览图片 ID，并自动打开
+              currentPreviewIdRef.current = targetImage.id;
+              setSelectedImage(targetImage);
+              setIsPreviewOpen(true);
+              // 记录浏览
+              recordView(targetImage);
             } else {
               // 目标图片不存在，正常显示列表
               data.images.forEach((img: PublicImage) => loadedIdsRef.current.add(img.id));
@@ -266,7 +268,9 @@ function GalleryContent() {
       // 正常加载
       fetchGallery(1, sortBy);
     }
-  }, [isInitialized, sortBy, refreshKey, userToken, searchParams, fetchGallery, fetchSingleImage]);
+    // 注意：不依赖 searchParams，只在初始化时读取一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, sortBy, refreshKey, userToken, fetchGallery, fetchSingleImage]);
   
   // 加载更多
   useEffect(() => {
@@ -347,34 +351,6 @@ function GalleryContent() {
       window.history.replaceState(null, '', newUrl);
     }
   }, [router]);
-  
-  // 根据 URL 参数自动打开图片（包括初始化时设置的待打开图片）
-  useEffect(() => {
-    if (!isInitialized || images.length === 0) return;
-    
-    // 如果正在关闭，跳过
-    if (isClosingRef.current) {
-      return;
-    }
-    
-    // 优先处理初始化时设置的待打开图片
-    const pendingId = pendingOpenImageIdRef.current;
-    const imageIdFromUrl = searchParams.get('id');
-    const targetId = pendingId || imageIdFromUrl;
-    
-    // 如果有目标图片但预览未打开，自动打开
-    if (targetId && !isPreviewOpen) {
-      const image = images.find(img => img.id === targetId);
-      if (image) {
-        setSelectedImage(image);
-        setIsPreviewOpen(true);
-        // 记录浏览
-        recordView(image);
-        // 清除待打开标记
-        pendingOpenImageIdRef.current = null;
-      }
-    }
-  }, [isInitialized, images, searchParams, isPreviewOpen]);
   
   // 图片加载错误处理
   const handleImageError = (imageId: string) => {
@@ -561,7 +537,7 @@ function GalleryContent() {
   
   // 打开图片预览
   const handleOpenPreview = (image: PublicImage) => {
-    isClosingRef.current = false; // 重置关闭标志
+    currentPreviewIdRef.current = image.id; // 设置当前预览图片 ID
     setSelectedImage(image);
     setIsPreviewOpen(true);
     // 更新 URL
@@ -572,15 +548,10 @@ function GalleryContent() {
   
   // 关闭图片预览
   const handleClosePreview = () => {
-    isClosingRef.current = true; // 标记正在关闭
+    currentPreviewIdRef.current = null; // 清空当前预览图片 ID
     setIsPreviewOpen(false);
     // 清除 URL 中的图片 ID（使用 history.replaceState 避免触发路由变化）
     updateUrl(null);
-    
-    // 在下一个事件循环中重置标志，确保所有 useEffect 都执行完毕
-    setTimeout(() => {
-      isClosingRef.current = false;
-    }, 100);
   };
 
   return (
