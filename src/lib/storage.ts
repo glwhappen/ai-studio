@@ -72,12 +72,30 @@ const THUMBNAIL_MAX_WIDTH = 400;
 const THUMBNAIL_MAX_HEIGHT = 400;
 const THUMBNAIL_QUALITY = 70;
 
-// 上传文件到 S3
-async function uploadToS3(
+// 上传文件到存储（支持 COZE 托管和自建 S3）
+async function uploadFile(
   key: string, 
   buffer: Buffer, 
   contentType: string
 ): Promise<string> {
+  // COZE 托管存储：使用 coze-coding-dev-sdk
+  if (isCozeManagedStorage()) {
+    const { S3Storage } = await import("coze-coding-dev-sdk");
+    const config = getStorageConfig();
+    const storage = new S3Storage({
+      endpointUrl: config.endpointUrl,
+      bucketName: config.bucketName,
+      region: config.region,
+    });
+    
+    return storage.uploadFile({
+      fileContent: buffer,
+      fileName: key,
+      contentType,
+    });
+  }
+  
+  // 自建 S3/MinIO：使用原生 AWS SDK
   const { client, bucketName } = getS3();
   
   const command = new PutObjectCommand({
@@ -120,7 +138,7 @@ export async function uploadBase64Image(
   const buffer = Buffer.from(base64, 'base64');
   
   const key = `ai-images/${fileName}`;
-  return uploadToS3(key, buffer, mimeType);
+  return uploadFile(key, buffer, mimeType);
 }
 
 // 生成缩略图并上传
@@ -150,7 +168,7 @@ export async function generateAndUploadThumbnail(
     .toBuffer();
   
   const thumbnailKey = `ai-thumbnails/${fileName}`;
-  return uploadToS3(thumbnailKey, thumbnailBuffer, 'image/jpeg');
+  return uploadFile(thumbnailKey, thumbnailBuffer, 'image/jpeg');
 }
 
 // 获取图片的签名 URL
