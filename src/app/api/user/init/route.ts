@@ -13,11 +13,12 @@ export async function POST(request: NextRequest) {
     
     const client = getSupabaseClient();
     
-    // token 就是用户 ID，直接查询是否存在
+    // token 就是用户标识，直接查询是否存在
+    // 注意：数据库字段名是 token，不是 id
     const { data: existingUser, error: queryError } = await client
       .from('users')
-      .select('id')
-      .eq('id', token)
+      .select('token')
+      .eq('token', token)
       .maybeSingle();
     
     if (queryError) {
@@ -25,32 +26,32 @@ export async function POST(request: NextRequest) {
     }
     
     if (existingUser) {
-      return NextResponse.json({ success: true, userId: existingUser.id, isNew: false });
+      return NextResponse.json({ success: true, userId: existingUser.token, isNew: false });
     }
     
-    // 不存在则创建（id 就是 token）
+    // 不存在则创建（token 字段存储用户标识）
     const { data: newUser, error: insertError } = await client
       .from('users')
-      .insert({ id: token })
-      .select('id')
+      .insert({ token })
+      .select('token')
       .single();
     
     if (insertError) {
       // 可能是并发插入导致的唯一键冲突，再次查询
       const { data: retryUser } = await client
         .from('users')
-        .select('id')
-        .eq('id', token)
+        .select('token')
+        .eq('token', token)
         .maybeSingle();
       
       if (retryUser) {
-        return NextResponse.json({ success: true, userId: retryUser.id, isNew: false });
+        return NextResponse.json({ success: true, userId: retryUser.token, isNew: false });
       }
       
       throw insertError;
     }
     
-    return NextResponse.json({ success: true, userId: newUser?.id, isNew: true });
+    return NextResponse.json({ success: true, userId: newUser?.token, isNew: true });
   } catch (error) {
     console.error('Init user error:', error);
     return NextResponse.json(
