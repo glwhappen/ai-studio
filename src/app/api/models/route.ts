@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 图片生成模型关键词
-const GEMINI_IMAGE_KEYWORDS = ['imagen', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
-const OPENAI_IMAGE_KEYWORDS = ['gpt-image', 'dall-e', 'dalle'];
-
 // 判断是否为图片生成模型
 function isImageModel(modelId: string, provider?: string): boolean {
   const lowerId = modelId.toLowerCase();
   
   if (provider === 'gemini') {
-    // Gemini: 必须同时满足：
-    // 1. 包含 imagen 或 gemini-2.0/2.5-flash/pro
-    // 2. 包含 image（如 imagen 自动满足，gemini 需要带 image 后缀）
-    const hasKeyword = GEMINI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+    // Gemini: 包含 imagen，或者同时包含 gemini 和 image
+    const hasImagen = lowerId.includes('imagen');
+    const hasGemini = lowerId.includes('gemini');
     const hasImage = lowerId.includes('image');
-    return hasKeyword && hasImage;
+    return hasImagen || (hasGemini && hasImage);
   } else {
     // OpenAI: 只显示 gpt-image 和 dall-e 模型
-    return OPENAI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+    return lowerId.includes('gpt-image') || lowerId.includes('dall-e') || lowerId.includes('dalle');
   }
 }
 
