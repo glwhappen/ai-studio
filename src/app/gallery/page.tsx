@@ -8,7 +8,7 @@ import { ImageViewer } from '@/components/ImageViewer';
 import { ImagePreviewPanel, type PreviewImageInfo } from '@/components/ImagePreviewPanel';
 import { Image as ImageIcon, Loader2, Download, Copy, Sparkles, Bot, Check, ImageIcon as RefImageIcon, RefreshCw, ThumbsUp, ThumbsDown, Eye, Flame, Clock, Share2 } from 'lucide-react';
 import Link from 'next/link';
-import Masonry from 'react-masonry-css';
+import { SmartMasonry } from '@/components/SmartMasonry';
 import {
   Select,
   SelectContent,
@@ -660,26 +660,18 @@ function GalleryContent() {
               </div>
             ) : (
               <>
-                {/* 瀑布流图片展示 - 使用 react-masonry-css 避免加载更多时图片位置变化 */}
-                <Masonry
-                  breakpointCols={{
-                    default: 5,
-                    1536: 4,
-                    1280: 4,
-                    1024: 3,
-                    768: 2,
-                    480: 2
-                  }}
-                  className="flex w-auto -ml-3"
-                  columnClassName="pl-3 bg-clip-padding"
+                {/* 智能瀑布流 - 根据图片高度均衡分配到各列 */}
+                <SmartMasonry
+                  items={images}
+                  gap={12}
+                  columnWidth={240}
                 >
-                  {images.map((image) => {
+                  {(image) => {
                     const hasError = failedImages.has(image.id);
                     
                     return (
                       <div
-                        key={image.id}
-                        className="group relative overflow-hidden rounded-xl bg-muted cursor-pointer mb-3"
+                        className="group relative overflow-hidden rounded-xl bg-muted cursor-pointer"
                         onClick={() => !hasError && handleOpenPreview(image)}
                       >
                         {hasError ? (
@@ -812,8 +804,8 @@ function GalleryContent() {
                         )}
                       </div>
                     );
-                  })}
-                </Masonry>
+                  }}
+                </SmartMasonry>
 
                 {/* 无限滚动加载指示器 */}
                 <div 
