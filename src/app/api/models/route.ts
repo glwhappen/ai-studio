@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 模型缓存
-let modelsCache: { id: string }[] | null = null;
-let cacheTime = 0;
-const CACHE_DURATION = 1000 * 60 * 60; // 1小时缓存
+// 图片生成模型关键词
+const GEMINI_IMAGE_KEYWORDS = ['imagen', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+const OPENAI_IMAGE_KEYWORDS = ['gpt-image', 'dall-e', 'dalle'];
+
+// 判断是否为图片生成模型
+function isImageModel(modelId: string, provider?: string): boolean {
+  const lowerId = modelId.toLowerCase();
+  
+  if (provider === 'gemini') {
+    // Gemini: 包含 imagen 或 gemini-2.0/2.5-flash/pro 的模型支持图片生成
+    return GEMINI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+  } else {
+    // OpenAI: 只显示 gpt-image 和 dall-e 模型
+    return OPENAI_IMAGE_KEYWORDS.some(keyword => lowerId.includes(keyword.toLowerCase()));
+  }
+}
 
 // 从 API 获取模型列表
-async function fetchModels(baseUrl: string, apiKey: string): Promise<{ id: string }[]> {
+async function fetchModels(baseUrl: string, apiKey: string, provider?: string): Promise<{ id: string }[]> {
   try {
     const response = await fetch(`${baseUrl}/v1/models`, {
       headers: {
@@ -20,12 +32,14 @@ async function fetchModels(baseUrl: string, apiKey: string): Promise<{ id: strin
     }
     
     const data = await response.json();
-    const models = data.data || [];
+    const allModels = data.data || [];
     
-    // 返回所有模型，不做过滤
-    return models.map((model: { id: string }) => ({
-      id: model.id,
-    }));
+    // 过滤出图片生成模型
+    const imageModels = allModels
+      .filter((model: { id: string }) => isImageModel(model.id, provider))
+      .map((model: { id: string }) => ({ id: model.id }));
+    
+    return imageModels;
   } catch (error) {
     console.error('Error fetching models:', error);
     return [];
@@ -36,19 +50,10 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const baseUrl = searchParams.get('baseUrl') || 'https://ai.nflow.red';
   const apiKey = searchParams.get('apiKey') || process.env.OPENAI_API_KEY || 'sk-V7ZFfhmndbAQXklSz2IC7gV68WGggGC5nxnlv0cXRq6ob3DN';
-  
-  // 检查缓存
-  const now = Date.now();
-  if (modelsCache && (now - cacheTime) < CACHE_DURATION) {
-    return NextResponse.json({ models: modelsCache, cached: true });
-  }
+  const provider = searchParams.get('provider') || undefined;
   
   // 获取模型列表
-  const models = await fetchModels(baseUrl, apiKey);
-  
-  // 更新缓存
-  modelsCache = models;
-  cacheTime = now;
+  const models = await fetchModels(baseUrl, apiKey, provider);
   
   return NextResponse.json({ models, cached: false });
 }
@@ -66,8 +71,8 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // 获取模型列表
-    const modelIds = await fetchModels(baseUrl, apiKey);
+    // 获取模型列表（已过滤）
+    const modelIds = await fetchModels(baseUrl, apiKey, provider);
     
     // 转换为前端需要的格式
     const models = modelIds.map(m => ({
