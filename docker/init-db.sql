@@ -9,11 +9,38 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 -- 用户表
 -- ============================================
+-- 注意：如果表已存在且字段长度不足，执行以下迁移：
+-- ALTER TABLE users ALTER COLUMN id TYPE VARCHAR(128);
+-- ALTER TABLE image_interactions ALTER COLUMN user_token TYPE VARCHAR(128);
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(128) PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 如果表已存在，确保字段长度正确
+DO $$
+BEGIN
+  -- 检查并修改 users.id 字段长度
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' 
+    AND column_name = 'id' 
+    AND character_maximum_length < 128
+  ) THEN
+    ALTER TABLE users ALTER COLUMN id TYPE VARCHAR(128);
+  END IF;
+  
+  -- 检查并修改 image_interactions.user_token 字段长度
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'image_interactions' 
+    AND column_name = 'user_token' 
+    AND character_maximum_length < 128
+  ) THEN
+    ALTER TABLE image_interactions ALTER COLUMN user_token TYPE VARCHAR(128);
+  END IF;
+END $$;
 
 -- 用户表索引
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);

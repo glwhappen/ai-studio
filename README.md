@@ -174,6 +174,23 @@ docker-compose exec postgres psql -U postgres -d ai_studio
 
 或使用数据库初始化脚本（已包含在 docker-compose.yml 中自动执行）。
 
+### 数据库迁移
+
+如果从旧版本升级，可能需要执行迁移脚本：
+
+```bash
+# 执行迁移脚本（扩展用户 ID 字段长度）
+docker exec -i ai-studio-postgres psql -U postgres -d ai_studio < docker/migrate-users.sql
+```
+
+或手动执行 SQL：
+
+```sql
+-- 扩展 users.id 字段长度（支持 64 位用户 token）
+ALTER TABLE users ALTER COLUMN id TYPE VARCHAR(128);
+ALTER TABLE image_interactions ALTER COLUMN user_token TYPE VARCHAR(128);
+```
+
 ### 数据库表结构
 
 ```sql

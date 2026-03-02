@@ -29,7 +29,14 @@ function getStorageConfig(): StorageConfig {
   return { endpointUrl, bucketName, accessKey, secretKey, region };
 }
 
-// 创建 S3 客户端
+// 检测是否使用 COZE 托管存储
+function isCozeManagedStorage(): boolean {
+  const config = getStorageConfig();
+  // 如果没有 accessKey/secretKey，说明使用 COZE 托管存储
+  return !config.accessKey || !config.secretKey;
+}
+
+// 创建 S3 客户端（用于自建 MinIO/S3）
 function createS3Client(): { client: S3Client; bucketName: string } {
   const config = getStorageConfig();
   
@@ -37,14 +44,15 @@ function createS3Client(): { client: S3Client; bucketName: string } {
   const client = new S3Client({
     endpoint: config.endpointUrl,
     region: config.region,
-    credentials: config.accessKey && config.secretKey ? {
+    credentials: {
       accessKeyId: config.accessKey,
       secretAccessKey: config.secretKey,
-    } : undefined,
+    },
     // MinIO 需要 path-style 访问
     forcePathStyle: config.endpointUrl.includes("localhost") || 
                     config.endpointUrl.includes("127.0.0.1") ||
-                    config.endpointUrl.includes("minio"),
+                    config.endpointUrl.includes("minio") ||
+                    !config.endpointUrl.includes("amazonaws.com"),
   });
   
   return { client, bucketName: config.bucketName };
@@ -147,6 +155,27 @@ export async function generateAndUploadThumbnail(
 
 // 获取图片的签名 URL
 export async function getImageUrl(key: string, expireTime = 86400 * 30): Promise<string> {
+  // COZE 托管存储：使用 coze-coding-dev-sdk
+  if (isCozeManagedStorage()) {
+    try {
+      const { S3Storage } = await import("coze-coding-dev-sdk");
+      const config = getStorageConfig();
+      const storage = new S3Storage({
+        endpointUrl: config.endpointUrl,
+        bucketName: config.bucketName,
+        region: config.region,
+      });
+      return storage.generatePresignedUrl({
+        key,
+        expireTime,
+      });
+    } catch (error) {
+      console.error("Failed to generate signed URL with COZE SDK:", error);
+      throw error;
+    }
+  }
+  
+  // 自建 S3/MinIO：使用原生 AWS SDK
   const { client, bucketName } = getS3();
   
   const command = new GetObjectCommand({
