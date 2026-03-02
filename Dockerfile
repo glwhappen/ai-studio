@@ -1,6 +1,6 @@
 # ============================================
 # AI 创作室 - Dockerfile
-# 优化版：精简依赖、中国镜像加速
+# 优化版：精简依赖、中国镜像加速、低配服务器友好
 # ============================================
 
 # 阶段 1: 构建
@@ -21,7 +21,8 @@ RUN pnpm config set registry https://registry.npmmirror.com
 
 # 复制依赖配置文件并安装依赖
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# 限制网络并发数，避免低配服务器卡死
+RUN pnpm install --frozen-lockfile --network-concurrency=1
 
 # 复制源代码
 COPY . .
@@ -29,6 +30,10 @@ COPY . .
 # 设置环境变量
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# 限制 Next.js 构建并行度（适合 2 核服务器）
+ENV NEXT_BUILD_JOBS=1
+# 限制 Node.js 内存使用（单位：MB）
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 # 构建应用
 RUN npx next build
@@ -69,7 +74,7 @@ COPY --from=builder /app/.next/static ./.next/static
 # RUN corepack enable && corepack prepare pnpm@latest --activate
 # RUN pnpm config set registry https://registry.npmmirror.com
 # COPY package.json pnpm-lock.yaml ./
-# RUN pnpm install --prod --frozen-lockfile && pnpm store prune
+# RUN pnpm install --prod --frozen-lockfile --network-concurrency=1 && pnpm store prune
 # ============================================
 
 # 设置权限

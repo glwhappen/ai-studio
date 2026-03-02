@@ -64,6 +64,34 @@ docker-compose up -d
 # - MinIO 控制台：http://localhost:9001
 ```
 
+**低配服务器优化（2 核 CPU / 2GB 内存）：**
+
+Next.js 构建过程较消耗资源，低配服务器可能卡死。解决方案：
+
+```bash
+# 方案 A：添加交换空间（推荐）
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# 然后正常构建
+docker compose build
+
+# 方案 B：使用预构建镜像（最快）
+# 在本地或 CI 构建后推送到镜像仓库，服务器直接拉取
+# docker pull your-registry/ai-studio:latest
+
+# 方案 C：使用低配构建脚本
+chmod +x build-low-spec.sh
+./build-low-spec.sh
+```
+
+Dockerfile 已针对低配服务器优化：
+- 限制 Next.js 构建并行度（`NEXT_BUILD_JOBS=1`）
+- 限制 Node.js 内存（`--max-old-space-size=1024`）
+- 限制 pnpm 网络并发（`--network-concurrency=1`）
+
 #### 方式三：本地开发
 
 ```bash

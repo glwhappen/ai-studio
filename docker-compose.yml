@@ -6,6 +6,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # 低配服务器优化：限制构建资源
+      args:
+        - NEXT_BUILD_JOBS=1
+        - NODE_OPTIONS=--max-old-space-size=1024
     container_name: ai-studio-app
     restart: unless-stopped
     ports:
