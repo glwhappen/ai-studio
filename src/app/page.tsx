@@ -919,7 +919,7 @@ function HomeContent() {
                 ) : (
                   <>
                     <Pencil className="h-4 w-4 mr-2" />
-                    改写
+                    改写提示词
                   </>
                 )}
               </Button>
@@ -929,7 +929,7 @@ function HomeContent() {
                 className="flex-1 sm:flex-none"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                直接生成
+                直接生成图片
               </Button>
             </div>
           </DialogFooter>
