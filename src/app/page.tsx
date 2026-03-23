@@ -132,11 +132,79 @@ function HomeContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoPrompt, redoPrompt]);
 
-  // 从 URL 参数读取提示词和配置（需要等待 localStorage 状态恢复）
+  // 从 URL 参数或 sessionStorage 读取提示词和配置
   useEffect(() => {
     // 必须等待状态加载完成后再处理 URL 参数
     if (!isLoaded) return;
     
+    // 首先检查 sessionStorage 中是否有创作数据（从画廊点击"创作"时存储）
+    const createParam = searchParams.get('create');
+    if (createParam) {
+      try {
+        const storedData = sessionStorage.getItem('ai-studio-create');
+        if (storedData) {
+          const createData = JSON.parse(storedData);
+          // 使用后清除，避免影响后续访问
+          sessionStorage.removeItem('ai-studio-create');
+          
+          // 填充提示词
+          if (createData.prompt) {
+            skipHistoryRef.current = true;
+            setPrompt(createData.prompt);
+            setPromptHistory(['', createData.prompt]);
+            setHistoryIndex(1);
+            setActiveTab('create');
+          }
+          
+          // 自动选择供应商
+          if (createData.provider && (createData.provider === 'gemini' || createData.provider === 'openai')) {
+            switchProvider(createData.provider);
+          }
+          
+          // 自动选择模型
+          if (createData.model) {
+            updateApiConfig({ selectedModel: createData.model });
+          }
+          
+          // 自动选择尺寸参数
+          const config = createData.config || {};
+          if (config.aspectRatio || config.imageSize || config.size) {
+            updateApiConfig({
+              useCustomSize: !!(config.aspectRatio || config.imageSize || config.size),
+              ...(config.aspectRatio && { aspectRatio: config.aspectRatio }),
+              ...(config.imageSize && { imageSize: config.imageSize }),
+              ...(config.size && { openaiSize: config.size }),
+            });
+          }
+          
+          // 处理参考图 URL
+          if (config.referenceImageUrl) {
+            setUseReferenceImage(true);
+            fetch(config.referenceImageUrl)
+              .then(res => res.blob())
+              .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const base64 = reader.result as string;
+                  const mimeType = blob.type || 'image/png';
+                  setReferenceImage({ base64: base64.split(',')[1], mimeType });
+                };
+                reader.readAsDataURL(blob);
+              })
+              .catch(err => {
+                console.error('Failed to load reference image:', err);
+                setUseReferenceImage(false);
+              });
+          }
+          
+          return; // 使用 sessionStorage 数据后直接返回
+        }
+      } catch (e) {
+        console.warn('Failed to parse create data from sessionStorage:', e);
+      }
+    }
+    
+    // 降级：从 URL 参数读取（兼容旧方式和 sessionStorage 不可用的情况）
     const promptParam = searchParams.get('prompt');
     const modelParam = searchParams.get('model');
     const providerParam = searchParams.get('provider');

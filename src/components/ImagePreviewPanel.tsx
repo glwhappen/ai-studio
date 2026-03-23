@@ -96,23 +96,37 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
 }
 
-// 构建创作链接参数
+// 构建创作链接参数（使用 sessionStorage 避免 URL 过长）
 function buildCreateUrl(image: PreviewImageInfo): string {
-  const params = new URLSearchParams();
-  params.set('prompt', image.prompt);
-  params.set('model', image.model);
-  params.set('provider', image.provider);
+  // 将图片信息存入 sessionStorage，避免 URL 过长导致 414 错误
+  const createData = {
+    prompt: image.prompt,
+    model: image.model,
+    provider: image.provider,
+    config: image.config,
+  };
   
-  if (image.config) {
-    if (image.config.aspectRatio) params.set('aspectRatio', image.config.aspectRatio as string);
-    if (image.config.imageSize) params.set('imageSize', image.config.imageSize as string);
-    if (image.config.size) params.set('size', image.config.size as string);
-    if (image.config.referenceImageUrl) {
-      params.set('referenceImageUrl', image.config.referenceImageUrl as string);
+  try {
+    sessionStorage.setItem('ai-studio-create', JSON.stringify(createData));
+  } catch (e) {
+    // sessionStorage 不可用时降级到 URL 参数
+    console.warn('sessionStorage not available, falling back to URL params');
+    const params = new URLSearchParams();
+    params.set('prompt', image.prompt);
+    params.set('model', image.model);
+    params.set('provider', image.provider);
+    
+    if (image.config) {
+      if (image.config.aspectRatio) params.set('aspectRatio', image.config.aspectRatio as string);
+      if (image.config.imageSize) params.set('imageSize', image.config.imageSize as string);
+      if (image.config.size) params.set('size', image.config.size as string);
     }
+    
+    return `/?${params.toString()}`;
   }
   
-  return `/?${params.toString()}`;
+  // URL 只传递 create 标识
+  return `/?create=${image.id}`;
 }
 
 interface ImagePreviewPanelProps {
