@@ -561,26 +561,33 @@ function HomeContent() {
       return;
     }
 
-    // 保存当前 prompt 到历史记录（如果不在历史中）
     const currentPrompt = prompt.trim();
-    if (currentPrompt && !promptHistory.includes(currentPrompt)) {
-      const newHistory = [...promptHistory, currentPrompt];
-      // 限制历史记录数量
-      if (newHistory.length > 50) {
-        newHistory.shift();
-      }
-      setPromptHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
       await submitGeneration(currentPrompt, useReferenceImage ? referenceImage : null);
-      // 清空输入框，但保留历史记录
-      skipHistoryRef.current = true;
+      
+      // 清空输入框，同时记录空字符串到历史
+      // 这样用户可以通过回退恢复之前的内容
       setPrompt('');
+      
+      // 如果当前 prompt 不在历史中，先添加它，再添加空字符串
+      if (!promptHistory.includes(currentPrompt)) {
+        const newHistory = [...promptHistory, currentPrompt, ''];
+        // 限制历史记录数量
+        const trimmedHistory = newHistory.length > 50 ? newHistory.slice(-50) : newHistory;
+        setPromptHistory(trimmedHistory);
+        setHistoryIndex(trimmedHistory.length - 1);
+      } else {
+        // 当前 prompt 已在历史中，只添加空字符串
+        const newHistory = [...promptHistory, ''];
+        const trimmedHistory = newHistory.length > 50 ? newHistory.slice(-50) : newHistory;
+        setPromptHistory(trimmedHistory);
+        setHistoryIndex(trimmedHistory.length - 1);
+      }
+      
       setReferenceImage(null);
       setUseReferenceImage(false);
     } catch (err) {
