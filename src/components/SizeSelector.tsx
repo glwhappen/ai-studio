@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -10,8 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { IMAGE_SIZES, ASPECT_RATIOS, OPENAI_SIZES, ApiProvider } from '@/types';
-import { Settings2, Square, Monitor } from 'lucide-react';
+import { Settings2, Square, Monitor, Pencil } from 'lucide-react';
 
 interface SizeSelectorProps {
   provider: ApiProvider;
@@ -30,6 +32,11 @@ interface SizeSelectorProps {
   }) => void;
 }
 
+// 验证宽高比格式（如 "16:9", "21:9", "1.85:1"）
+function isValidAspectRatio(value: string): boolean {
+  return /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(value);
+}
+
 export function SizeSelector({ 
   provider, 
   aspectRatio, 
@@ -39,12 +46,43 @@ export function SizeSelector({
   apiKey, 
   onSizeChange 
 }: SizeSelectorProps) {
+  // 判断当前是否是自定义宽高比
+  const isCustomAspect = aspectRatio && !ASPECT_RATIOS.some(r => r.value === aspectRatio);
+  
+  const [showCustomInput, setShowCustomInput] = useState(!!isCustomAspect);
+  const [customAspectRatio, setCustomAspectRatio] = useState(isCustomAspect ? aspectRatio : '');
+  const [customError, setCustomError] = useState('');
+  
   const handleCustomSizeChange = (checked: boolean) => {
     onSizeChange({ useCustomSize: checked });
   };
 
   const handleAspectRatioChange = (value: string) => {
-    onSizeChange({ aspectRatio: value });
+    if (value === 'custom') {
+      setShowCustomInput(true);
+      // 如果已有自定义值，保持；否则等待输入
+      if (customAspectRatio && isValidAspectRatio(customAspectRatio)) {
+        onSizeChange({ aspectRatio: customAspectRatio });
+      }
+    } else {
+      setShowCustomInput(false);
+      setCustomAspectRatio('');
+      onSizeChange({ aspectRatio: value });
+    }
+  };
+
+  const handleCustomAspectRatioChange = (value: string) => {
+    setCustomAspectRatio(value);
+    
+    // 实时验证
+    if (value && !isValidAspectRatio(value)) {
+      setCustomError('格式错误，请输入如 21:9 或 2.35:1');
+    } else {
+      setCustomError('');
+      if (value && isValidAspectRatio(value)) {
+        onSizeChange({ aspectRatio: value });
+      }
+    }
   };
 
   const handleImageSizeChange = (value: string) => {
@@ -59,6 +97,14 @@ export function SizeSelector({
   
   // 所有尺寸选项都可用
   const availableGeminiSizes = IMAGE_SIZES;
+
+  // 显示当前的宽高比标签
+  const getAspectDisplayLabel = () => {
+    if (isCustomAspect && aspectRatio) {
+      return `自定义 (${aspectRatio})`;
+    }
+    return currentAspect?.label || '选择宽高比';
+  };
 
   return (
     <div className="space-y-3">
@@ -89,9 +135,14 @@ export function SizeSelector({
                   <Square className="h-3 w-3" />
                   宽高比
                 </Label>
-                <Select value={aspectRatio} onValueChange={handleAspectRatioChange}>
+                <Select 
+                  value={isCustomAspect ? 'custom' : aspectRatio} 
+                  onValueChange={handleAspectRatioChange}
+                >
                   <SelectTrigger className="w-full h-8">
-                    <SelectValue placeholder="选择宽高比" />
+                    <SelectValue placeholder="选择宽高比">
+                      {isCustomAspect ? `自定义 (${aspectRatio})` : (currentAspect?.label || '选择宽高比')}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {ASPECT_RATIOS.map((ratio) => (
@@ -104,9 +155,40 @@ export function SizeSelector({
                         </div>
                       </SelectItem>
                     ))}
+                    {/* 自定义选项 */}
+                    <SelectItem value="custom">
+                      <div className="flex items-center gap-2">
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-medium">自定义比例</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-                {currentAspect && (
+                
+                {/* 自定义宽高比输入框 */}
+                {showCustomInput && (
+                  <div className="space-y-1.5 mt-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="如 21:9 或 2.35:1"
+                        value={customAspectRatio}
+                        onChange={(e) => handleCustomAspectRatioChange(e.target.value)}
+                        className={`h-8 flex-1 ${customError ? 'border-destructive' : ''}`}
+                      />
+                    </div>
+                    {customError && (
+                      <p className="text-xs text-destructive">{customError}</p>
+                    )}
+                    {!customError && (
+                      <p className="text-xs text-muted-foreground">
+                        输入格式：宽度:高度（如 21:9、2.35:1）
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* 当前选中的预设描述 */}
+                {!showCustomInput && currentAspect && (
                   <p className="text-xs text-muted-foreground">{currentAspect.description}</p>
                 )}
               </div>

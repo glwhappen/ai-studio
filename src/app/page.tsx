@@ -69,6 +69,11 @@ function HomeContent() {
   const [promptHistory, setPromptHistory] = useState<string[]>(['']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const skipHistoryRef = useRef(false);
+  
+  // 浏览器历史记录支持
+  const browserHistoryRef = useRef<number>(0);
+  const isPopStateRef = useRef(false);
+  const BROWSER_HISTORY_KEY = 'ai-studio-browser-history';
 
   // 更新提示词并记录历史
   const updatePromptWithHistory = useCallback((newPrompt: string) => {
@@ -131,6 +136,80 @@ function HomeContent() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoPrompt, redoPrompt]);
+
+  // 浏览器历史记录支持
+  // 保存当前状态到 sessionStorage
+  const saveStateToSession = useCallback((state: {
+    prompt: string;
+    model: string;
+    provider: string;
+    aspectRatio?: string;
+    imageSize?: string;
+    openaiSize?: string;
+    useCustomSize: boolean;
+  }) => {
+    try {
+      const history = JSON.parse(sessionStorage.getItem(BROWSER_HISTORY_KEY) || '[]');
+      history.push({ ...state, timestamp: Date.now() });
+      // 限制历史记录数量
+      if (history.length > 20) history.shift();
+      sessionStorage.setItem(BROWSER_HISTORY_KEY, JSON.stringify(history));
+      return history.length - 1;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // 从 sessionStorage 恢复状态
+  const restoreStateFromSession = useCallback((index: number) => {
+    try {
+      const history = JSON.parse(sessionStorage.getItem(BROWSER_HISTORY_KEY) || '[]');
+      if (history[index]) {
+        const state = history[index];
+        isPopStateRef.current = true;
+        
+        if (state.prompt !== undefined) {
+          skipHistoryRef.current = true;
+          setPrompt(state.prompt);
+          setPromptHistory(['', state.prompt]);
+          setHistoryIndex(1);
+        }
+        
+        if (state.provider && (state.provider === 'gemini' || state.provider === 'openai')) {
+          switchProvider(state.provider);
+        }
+        
+        if (state.model) {
+          updateApiConfig({ selectedModel: state.model });
+        }
+        
+        if (state.aspectRatio || state.imageSize || state.openaiSize || state.useCustomSize !== undefined) {
+          updateApiConfig({
+            useCustomSize: state.useCustomSize ?? false,
+            ...(state.aspectRatio && { aspectRatio: state.aspectRatio }),
+            ...(state.imageSize && { imageSize: state.imageSize }),
+            ...(state.openaiSize && { openaiSize: state.openaiSize }),
+          });
+        }
+        
+        setActiveTab('create');
+      }
+    } catch (e) {
+      console.warn('Failed to restore state from session:', e);
+    }
+  }, [switchProvider, updateApiConfig]);
+
+  // 监听浏览器前进/后退
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state?.historyIndex !== undefined) {
+        restoreStateFromSession(e.state.historyIndex);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [restoreStateFromSession]);
 
   // 从 URL 参数或 sessionStorage 读取提示词和配置
   useEffect(() => {
@@ -482,15 +561,26 @@ function HomeContent() {
       return;
     }
 
+    // 保存当前 prompt 到历史记录（如果不在历史中）
+    const currentPrompt = prompt.trim();
+    if (currentPrompt && !promptHistory.includes(currentPrompt)) {
+      const newHistory = [...promptHistory, currentPrompt];
+      // 限制历史记录数量
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+      setPromptHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      await submitGeneration(prompt.trim(), useReferenceImage ? referenceImage : null);
+      await submitGeneration(currentPrompt, useReferenceImage ? referenceImage : null);
+      // 清空输入框，但保留历史记录
       skipHistoryRef.current = true;
       setPrompt('');
-      setPromptHistory(['']);
-      setHistoryIndex(0);
       setReferenceImage(null);
       setUseReferenceImage(false);
     } catch (err) {
