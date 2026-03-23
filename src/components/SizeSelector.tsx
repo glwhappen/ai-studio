@@ -249,7 +249,9 @@ export function SizeSelector({
             <span className="text-muted-foreground">输出:</span>
             <span className="font-mono font-medium">
               {provider === 'gemini' 
-                ? `${aspectRatio} · ${imageSize}`
+                ? (aspectRatio === 'auto' 
+                    ? `${imageSize}（自动比例）` 
+                    : `${aspectRatio} · ${imageSize}`)
                 : openaiSize
               }
             </span>

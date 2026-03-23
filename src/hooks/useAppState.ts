@@ -63,8 +63,8 @@ const defaultApiConfig: ApiConfigState = {
     openai: DEFAULT_OPENAI_CONFIG,
   },
   selectedModel: '',  // 模型会在用户首次使用时根据供应商自动设置
-  aspectRatio: '1:1',
-  imageSize: '1K',
+  aspectRatio: 'auto',  // 默认不限制宽高比，让模型自动决定
+  imageSize: '2K',  // 默认 2K 分辨率
   openaiSize: 'auto',
   useCustomSize: false,
 };

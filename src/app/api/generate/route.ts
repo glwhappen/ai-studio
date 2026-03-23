@@ -245,11 +245,18 @@ async function handleGeminiRequest(body: GenerateRequest) {
   };
 
   // 添加 imageConfig 参数
-  if (aspectRatio) {
+  // 只有指定了有效宽高比（非 auto）时才传递给 API
+  if (aspectRatio && aspectRatio !== 'auto') {
     const generationConfig = requestBody.generationConfig as Record<string, unknown>;
     generationConfig.imageConfig = {
-      aspectRatio: aspectRatio || '1:1',
+      aspectRatio: aspectRatio,
       imageSize: imageSize || '1K',
+    };
+  } else if (imageSize) {
+    // 只指定分辨率，让模型自动决定宽高比
+    const generationConfig = requestBody.generationConfig as Record<string, unknown>;
+    generationConfig.imageConfig = {
+      imageSize: imageSize,
     };
   }
 

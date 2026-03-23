@@ -116,6 +116,7 @@ export const IMAGE_SIZES: ImageSizeOption[] = [
 
 // Gemini 宽高比选项
 export const ASPECT_RATIOS: AspectRatioOption[] = [
+  { id: 'auto', label: '不限制', value: 'auto', description: '让模型根据提示词自动决定' },
   { id: '1:1', label: '正方形', value: '1:1', description: '适合头像、图标' },
   { id: '4:3', label: '横版 4:3', value: '4:3', description: '适合演示文稿' },
   { id: '16:9', label: '横版 16:9', value: '16:9', description: '适合封面、横幅' },
